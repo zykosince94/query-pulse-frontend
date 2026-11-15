@@ -32,6 +32,9 @@ export const backend = {
   lastTestPassword: undefined as string | null | undefined,
   /** PUTs that changed only name/description/enabled (no connection test). */
   updatesWithoutTest: 0,
+  /** Per-source calls/time per minute, as the collector would have recorded them. */
+  trends: new Map<number, Schemas["TrendPoint"][]>(),
+  collectorRunning: true,
   nextId: 1,
   reset() {
     this.session = null;
@@ -40,6 +43,8 @@ export const backend = {
     this.passwords = new Map();
     this.lastTestPassword = undefined;
     this.updatesWithoutTest = 0;
+    this.trends = new Map();
+    this.collectorRunning = true;
     this.nextId = 1;
   },
 };
@@ -108,6 +113,8 @@ export function makeSource(overrides: Partial<SourceDetail> = {}): SourceDetail 
     last_error: null,
     created_at: now,
     updated_at: now,
+    last_collected_at: null,
+    warnings: [],
     capabilities: capabilitiesFor("ok.example"),
     ...overrides,
   };
@@ -339,5 +346,66 @@ export const handlers = [
       : notFoundSource();
   }),
 ];
+
+/** A minute-by-minute trend ending now: `calls[i]` calls and `calls[i] * 2` ms per minute. */
+export function makeTrend(calls: number[]): Schemas["TrendPoint"][] {
+  const now = Date.now();
+  return calls.map((n, i) => ({
+    start: new Date(now - (calls.length - 1 - i) * 60_000).toISOString(),
+    calls: n,
+    total_exec_time_ms: n * 2,
+  }));
+}
+
+handlers.push(
+  http.get("/api/workload/health", () => {
+    const denied = guard(false);
+    if (denied) return denied;
+    return HttpResponse.json<Schemas["SourceHealth"][]>(
+      backend.sources.map((source) => {
+        const points = backend.trends.get(source.id) ?? [];
+        return {
+          source: summary(source),
+          calls: points.reduce((sum, p) => sum + p.calls, 0),
+          total_exec_time_ms: points.reduce((sum, p) => sum + p.total_exec_time_ms, 0),
+          points,
+        };
+      }),
+    );
+  }),
+
+  http.get("/api/sources/:id/trend", ({ params }) => {
+    const denied = guard(false);
+    if (denied) return denied;
+    const id = Number(params.id);
+    if (!backend.sources.some((s) => s.id === id)) return notFoundSource();
+    return HttpResponse.json<Schemas["SourceTrend"]>({
+      source_id: id,
+      minutes: 60,
+      bucket_seconds: 60,
+      points: backend.trends.get(id) ?? [],
+    });
+  }),
+
+  http.get("/api/collector/status", () => {
+    const denied = guard(false);
+    if (denied) return denied;
+    return HttpResponse.json<Schemas["CollectorStatus"]>(
+      backend.collectorRunning
+        ? {
+            status: "running",
+            last_beat_at: new Date().toISOString(),
+            source_count: backend.sources.length,
+            message: "Collecting.",
+          }
+        : {
+            status: "not_running",
+            last_beat_at: null,
+            source_count: backend.sources.length,
+            message: "The collector has never run.",
+          },
+    );
+  }),
+);
 
 export const server = setupServer(...handlers);

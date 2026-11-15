@@ -15,7 +15,7 @@ async function signIn(page: Page) {
   await page.getByLabel("Username").fill(ADMIN_USERNAME);
   await page.getByLabel("Password").fill(ADMIN_PASSWORD);
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page.getByRole("heading", { name: "Workload" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Workload", exact: true })).toBeVisible();
 }
 
 async function fill(page: Page, fields: Record<string, string>) {

@@ -33,22 +33,6 @@ export function ComingSoon({ title, description, phase, items }: Props) {
   );
 }
 
-export function WorkloadPage() {
-  return (
-    <ComingSoon
-      title="Workload"
-      phase="Phase 4 · v0.4.0"
-      description="The home screen: the most expensive operations across your sources."
-      items={[
-        "Source health strip",
-        "Operations ranked by total time, mean time or calls",
-        "Time range and filters kept in the URL",
-        "Drill-down into an operation's history and plan",
-      ]}
-    />
-  );
-}
-
 export function FindingsPage() {
   return (
     <ComingSoon

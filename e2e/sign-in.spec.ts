@@ -12,7 +12,7 @@ test("admin signs in and out (QP-AC-02)", async ({ page }) => {
   await page.getByLabel("Password").fill(ADMIN_PASSWORD);
   await page.getByRole("button", { name: "Sign in" }).click();
 
-  await expect(page.getByRole("heading", { name: "Workload" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Workload", exact: true })).toBeVisible();
   await expect(page.getByText(`Signed in as ${ADMIN_USERNAME}`)).toBeVisible();
 
   await page.getByRole("button", { name: "Sign out" }).click();

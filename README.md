@@ -20,9 +20,13 @@ and the main README.
   - A detail page with the **capability checklist**: what works, and the exact fix (with a
     Copy button) for what doesn't.
   - Re-check and delete. Write actions are disabled or hidden for the demo user.
+- **Workload home**: a health strip with one card per source (status, last-hour calls and
+  execution time, a calls-per-minute sparkline), and the collector's running state.
+- **Collection panel** on each source: last collection, eviction warnings, and charts of calls and
+  execution time per minute with a table view of the data. Charts use ECharts, loaded on demand.
 - **Typed API client** generated from the backend's `openapi.json`.
 
-The Workload, Findings and Settings pages are placeholders that say which phase delivers them.
+The workload explorer, Findings and Settings are placeholders that say which phase delivers them.
 
 ## Quick start
 
@@ -69,7 +73,7 @@ The backend's committed `openapi.json` is the only contract between the repos.
 
 Vite · React 19 · TypeScript (strict) · TanStack Router (code-based route tree) · TanStack Query ·
 Tailwind CSS v4 · shadcn/ui-style components · openapi-typescript + openapi-fetch · Biome ·
-Vitest + React Testing Library + Mock Service Worker · Playwright.
+Vitest + React Testing Library + Mock Service Worker · Playwright · ECharts.
 
 ## Documentation
 
@@ -86,7 +90,9 @@ src/
   features/
     auth/           sign-in page, session queries and mutations
     shell/          app shell: navigation, user, sign out
-    sources/        data sources: list, add/edit form, detail and capability checklist
+    sources/        data sources: list, add/edit form, detail, checklist, collection panel
+    workload/       home page health strip and the workload queries
+  components/charts/  ECharts wrapper (lazy-loaded) and the one-series TrendChart
     placeholder/    pages for screens that later phases build
   components/ui/    shadcn/ui-style building blocks (button, input, card, ...)
   styles/           tokens.css (shared design tokens) and Tailwind setup

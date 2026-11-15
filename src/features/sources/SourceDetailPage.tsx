@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useCanWrite } from "@/features/auth/queries";
 import { dateTime, timeAgo } from "@/lib/format";
+import { CollectionPanel } from "./CollectionPanel";
 import { CapabilityChecklist, ConnectionError, EngineBadge, StatusBadge } from "./components";
 import { sourceQuery, useDeleteSource, useRecheckSource } from "./queries";
 
@@ -153,6 +154,8 @@ export function SourceDetailPage({ sourceId }: { sourceId: number }) {
           </dl>
         </CardContent>
       </Card>
+
+      <CollectionPanel source={source} />
 
       <section aria-labelledby="capabilities-heading" className="flex flex-col gap-3">
         <div>

@@ -15,11 +15,12 @@ import { ApiError } from "@/api/client";
 import { Button } from "@/components/ui/button";
 import { LoginPage } from "@/features/auth/LoginPage";
 import { currentUserQuery } from "@/features/auth/queries";
-import { FindingsPage, SettingsPage, WorkloadPage } from "@/features/placeholder/ComingSoon";
+import { FindingsPage, SettingsPage } from "@/features/placeholder/ComingSoon";
 import { AppShell } from "@/features/shell/AppShell";
 import { SourceDetailPage } from "@/features/sources/SourceDetailPage";
 import { EditSourcePage, NewSourcePage } from "@/features/sources/SourceFormPage";
 import { SourcesPage } from "@/features/sources/SourcesPage";
+import { WorkloadPage } from "@/features/workload/WorkloadPage";
 
 export type RouterContext = { queryClient: QueryClient };
 

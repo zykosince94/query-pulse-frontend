@@ -1,7 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { Database, Plus } from "lucide-react";
+import { Database, Plus, TriangleAlert } from "lucide-react";
 import { Alert } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useCanWrite } from "@/features/auth/queries";
@@ -80,7 +81,7 @@ export function SourcesPage() {
                   <th className="hidden px-4 py-3 font-semibold md:table-cell">Location</th>
                   <th className="hidden px-4 py-3 font-semibold sm:table-cell">Version</th>
                   <th className="px-4 py-3 font-semibold">Status</th>
-                  <th className="hidden px-4 py-3 font-semibold lg:table-cell">Last checked</th>
+                  <th className="hidden px-4 py-3 font-semibold lg:table-cell">Last collected</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -108,10 +109,18 @@ export function SourcesPage() {
                       {source.server_version ?? "—"}
                     </td>
                     <td className="px-4 py-3">
-                      <StatusBadge status={source.status} />
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <StatusBadge status={source.status} />
+                        {source.warnings.length > 0 && (
+                          <Badge variant="warning" title={source.warnings.join(" ")}>
+                            <TriangleAlert aria-hidden className="size-3" />
+                            Incomplete
+                          </Badge>
+                        )}
+                      </div>
                     </td>
                     <td className="hidden px-4 py-3 text-muted-foreground lg:table-cell">
-                      {timeAgo(source.last_checked_at)}
+                      {source.engine === "postgres" ? timeAgo(source.last_collected_at) : "—"}
                     </td>
                   </tr>
                 ))}

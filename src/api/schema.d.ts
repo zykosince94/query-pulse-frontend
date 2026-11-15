@@ -102,7 +102,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Collector Status */
+        /**
+         * Collector Status
+         * @description Whether the collector process is alive, from the heartbeat it writes.
+         */
         get: operations["getCollectorStatus"];
         put?: never;
         post?: never;
@@ -204,6 +207,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/sources/{source_id}/trend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Source Trend
+         * @description Calls and execution time per minute for one source.
+         */
+        get: operations["getSourceTrend"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workload/health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Workload Health
+         * @description The health strip: every source with its status and recent activity.
+         */
+        get: operations["getWorkloadHealth"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -268,15 +311,17 @@ export interface components {
         };
         /** CollectorStatus */
         CollectorStatus: {
+            /** Last Beat At */
+            last_beat_at: string | null;
             /** Message */
             message: string;
             /** Source Count */
             source_count: number;
             /**
              * Status
-             * @constant
+             * @enum {string}
              */
-            status: "not_running";
+            status: "running" | "not_running";
         };
         /** ConnectionErrorOut */
         ConnectionErrorOut: {
@@ -409,6 +454,8 @@ export interface components {
             id: number;
             /** Last Checked At */
             last_checked_at: string | null;
+            /** Last Collected At */
+            last_collected_at?: string | null;
             /** Last Error */
             last_error: string | null;
             /** Name */
@@ -430,12 +477,30 @@ export interface components {
             updated_at: string;
             /** Username */
             username: string;
+            /**
+             * Warnings
+             * @default []
+             */
+            warnings: string[];
         };
         /**
          * SourceEngine
          * @enum {string}
          */
         SourceEngine: "postgres" | "mongodb";
+        /**
+         * SourceHealth
+         * @description One card of the health strip: the source, its totals and its trend.
+         */
+        SourceHealth: {
+            /** Calls */
+            calls: number;
+            /** Points */
+            points: components["schemas"]["TrendPoint"][];
+            source: components["schemas"]["SourceOut"];
+            /** Total Exec Time Ms */
+            total_exec_time_ms: number;
+        };
         /** SourceOut */
         SourceOut: {
             /**
@@ -458,6 +523,8 @@ export interface components {
             id: number;
             /** Last Checked At */
             last_checked_at: string | null;
+            /** Last Collected At */
+            last_collected_at?: string | null;
             /** Last Error */
             last_error: string | null;
             /** Name */
@@ -479,12 +546,28 @@ export interface components {
             updated_at: string;
             /** Username */
             username: string;
+            /**
+             * Warnings
+             * @default []
+             */
+            warnings: string[];
         };
         /**
          * SourceStatus
          * @enum {string}
          */
         SourceStatus: "healthy" | "degraded" | "failing";
+        /** SourceTrend */
+        SourceTrend: {
+            /** Bucket Seconds */
+            bucket_seconds: number;
+            /** Minutes */
+            minutes: number;
+            /** Points */
+            points: components["schemas"]["TrendPoint"][];
+            /** Source Id */
+            source_id: number;
+        };
         /** SourceUpdate */
         SourceUpdate: {
             /** Database */
@@ -519,6 +602,21 @@ export interface components {
              * @default
              */
             username: string;
+        };
+        /**
+         * TrendPoint
+         * @description Activity in one minute: total calls and total execution time across all statements.
+         */
+        TrendPoint: {
+            /** Calls */
+            calls: number;
+            /**
+             * Start
+             * Format: date-time
+             */
+            start: string;
+            /** Total Exec Time Ms */
+            total_exec_time_ms: number;
         };
         /** UserOut */
         UserOut: {
@@ -915,6 +1013,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SourceDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getSourceTrend: {
+        parameters: {
+            query?: {
+                /** @description Window length in minutes */
+                minutes?: number;
+            };
+            header?: never;
+            path: {
+                source_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SourceTrend"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getWorkloadHealth: {
+        parameters: {
+            query?: {
+                /** @description Window length in minutes */
+                minutes?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SourceHealth"][];
                 };
             };
             /** @description Validation Error */

@@ -30,6 +30,11 @@
   --border: #dfe7f4;
   --input: #d1d9e6;
   --ring: #1d4ed8;
+
+  /* Charts. --chart-1 is validated (dataviz validator) against --card in each mode. */
+  --chart-1: #1d4ed8;
+  --chart-grid: #e7edf5;
+  --chart-axis: #8a9bb2;
 }
 
 .dark {
@@ -55,4 +60,9 @@
   --border: #24324d;
   --input: #2c3b5c;
   --ring: #6b93ff;
+
+  /* Slightly deeper than --primary: #6b93ff is above the dark-mode lightness band for marks. */
+  --chart-1: #5f88f5;
+  --chart-grid: #1f2b44;
+  --chart-axis: #6f819c;
 }
