@@ -5,6 +5,7 @@ import {
   createRouter,
   type ErrorComponentProps,
   Link,
+  notFound,
   Outlet,
   type RouterHistory,
   redirect,
@@ -14,13 +15,11 @@ import { ApiError } from "@/api/client";
 import { Button } from "@/components/ui/button";
 import { LoginPage } from "@/features/auth/LoginPage";
 import { currentUserQuery } from "@/features/auth/queries";
-import {
-  FindingsPage,
-  SettingsPage,
-  SourcesPage,
-  WorkloadPage,
-} from "@/features/placeholder/ComingSoon";
+import { FindingsPage, SettingsPage, WorkloadPage } from "@/features/placeholder/ComingSoon";
 import { AppShell } from "@/features/shell/AppShell";
+import { SourceDetailPage } from "@/features/sources/SourceDetailPage";
+import { EditSourcePage, NewSourcePage } from "@/features/sources/SourceFormPage";
+import { SourcesPage } from "@/features/sources/SourcesPage";
 
 export type RouterContext = { queryClient: QueryClient };
 
@@ -125,6 +124,40 @@ const sourcesRoute = createRoute({
   path: "/sources",
   component: SourcesPage,
 });
+const newSourceRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: "/sources/new",
+  component: NewSourcePage,
+});
+
+/** `$sourceId` must be a positive integer; anything else is a not-found page. */
+const sourceIdParams = {
+  parse: ({ sourceId }: { sourceId: string }) => {
+    const id = Number(sourceId);
+    if (!Number.isInteger(id) || id < 1) throw notFound();
+    return { sourceId: id };
+  },
+  stringify: ({ sourceId }: { sourceId: number }) => ({ sourceId: String(sourceId) }),
+};
+
+const sourceDetailRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: "/sources/$sourceId",
+  params: sourceIdParams,
+  component: function SourceDetailRoute() {
+    const { sourceId } = sourceDetailRoute.useParams();
+    return <SourceDetailPage sourceId={sourceId} />;
+  },
+});
+const editSourceRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: "/sources/$sourceId/edit",
+  params: sourceIdParams,
+  component: function EditSourceRoute() {
+    const { sourceId } = editSourceRoute.useParams();
+    return <EditSourcePage sourceId={sourceId} />;
+  },
+});
 const findingsRoute = createRoute({
   getParentRoute: () => appRoute,
   path: "/findings",
@@ -138,7 +171,15 @@ const settingsRoute = createRoute({
 
 const routeTree = rootRoute.addChildren([
   loginRoute,
-  appRoute.addChildren([workloadRoute, sourcesRoute, findingsRoute, settingsRoute]),
+  appRoute.addChildren([
+    workloadRoute,
+    sourcesRoute,
+    newSourceRoute,
+    sourceDetailRoute,
+    editSourceRoute,
+    findingsRoute,
+    settingsRoute,
+  ]),
 ]);
 
 /**

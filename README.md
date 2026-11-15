@@ -13,10 +13,16 @@ and the main README.
   only). The demo user sees a "Read-only demo" badge.
 - **Session handling**: sign out, automatic return to sign-in when the session expires, and a
   clear "can't reach the server" screen with retry.
+- **Data sources**:
+  - A list with engine and status badges.
+  - An add/edit form where **Save** is enabled only after the current connection settings pass
+    **Test connection**.
+  - A detail page with the **capability checklist**: what works, and the exact fix (with a
+    Copy button) for what doesn't.
+  - Re-check and delete. Write actions are disabled or hidden for the demo user.
 - **Typed API client** generated from the backend's `openapi.json`.
 
-The Workload, Data sources, Findings and Settings pages are placeholders that say which phase
-delivers them. Data sources arrives next (Phase 2).
+The Workload, Findings and Settings pages are placeholders that say which phase delivers them.
 
 ## Quick start
 
@@ -80,6 +86,7 @@ src/
   features/
     auth/           sign-in page, session queries and mutations
     shell/          app shell: navigation, user, sign out
+    sources/        data sources: list, add/edit form, detail and capability checklist
     placeholder/    pages for screens that later phases build
   components/ui/    shadcn/ui-style building blocks (button, input, card, ...)
   styles/           tokens.css (shared design tokens) and Tailwind setup

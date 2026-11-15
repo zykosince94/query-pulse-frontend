@@ -122,7 +122,10 @@ export interface paths {
         /** List Sources */
         get: operations["listSources"];
         put?: never;
-        /** Create Source */
+        /**
+         * Create Source
+         * @description Save a source, but only after a successful connection test.
+         */
         post: operations["createSource"];
         delete?: never;
         options?: never;
@@ -139,7 +142,13 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Test Source Connection */
+        /**
+         * Test Connection
+         * @description Try the connection and report capabilities without saving anything.
+         *
+         *     A failed connection is a normal result (`ok: false` with an error code and message),
+         *     not an HTTP error.
+         */
         post: operations["testSourceConnection"];
         delete?: never;
         options?: never;
@@ -147,34 +156,44 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/sources/{source_id}/health": {
+    "/api/sources/{source_id}": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Source Health */
-        get: operations["getSourceHealth"];
-        put?: never;
+        /** Get Source */
+        get: operations["getSource"];
+        /**
+         * Update Source
+         * @description Replace a source's settings. The new settings must pass a connection test.
+         */
+        put: operations["updateSource"];
         post?: never;
-        delete?: never;
+        /** Delete Source */
+        delete: operations["deleteSource"];
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/sources/{source_id}/workload-preview": {
+    "/api/sources/{source_id}/check": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Workload Preview */
-        get: operations["getWorkloadPreview"];
+        get?: never;
         put?: never;
-        post?: never;
+        /**
+         * Check Source
+         * @description Re-run the connection and capability checks with the stored settings.
+         *
+         *     Always returns the source; a failed check shows as `status: failing` with `last_error`.
+         */
+        post: operations["checkSource"];
         delete?: never;
         options?: never;
         head?: never;
@@ -230,6 +249,82 @@ export interface components {
             /** Demo Enabled */
             demo_enabled: boolean;
         };
+        /** CapabilityOut */
+        CapabilityOut: {
+            /** Available */
+            available: boolean;
+            /** Feature */
+            feature: string;
+            /** Fix */
+            fix: string | null;
+            /** Label */
+            label: string;
+            /** Reason */
+            reason: string | null;
+        };
+        /** CollectorStatus */
+        CollectorStatus: {
+            /** Message */
+            message: string;
+            /** Source Count */
+            source_count: number;
+            /**
+             * Status
+             * @constant
+             */
+            status: "not_running";
+        };
+        /** ConnectionErrorOut */
+        ConnectionErrorOut: {
+            code: components["schemas"]["ErrorCode"];
+            /** Message */
+            message: string;
+        };
+        /** ConnectionTestRequest */
+        ConnectionTestRequest: {
+            /** Database */
+            database: string;
+            engine: components["schemas"]["SourceEngine"];
+            /** Host */
+            host: string;
+            /** Password */
+            password?: string | null;
+            /** Port */
+            port: number;
+            /** Source Id */
+            source_id?: number | null;
+            /**
+             * Tls Mode
+             * @default disable
+             * @enum {string}
+             */
+            tls_mode: "disable" | "require" | "verify-full";
+            /**
+             * Username
+             * @default
+             */
+            username: string;
+        };
+        /** ConnectionTestResult */
+        ConnectionTestResult: {
+            /**
+             * Capabilities
+             * @default []
+             */
+            capabilities: components["schemas"]["CapabilityOut"][];
+            error?: components["schemas"]["ConnectionErrorOut"] | null;
+            /** Latency Ms */
+            latency_ms?: number | null;
+            /** Ok */
+            ok: boolean;
+            /** Server Version */
+            server_version?: string | null;
+        };
+        /**
+         * ErrorCode
+         * @enum {string}
+         */
+        ErrorCode: "unreachable" | "timeout" | "auth_failed" | "tls" | "database_not_found" | "permission_denied" | "unsupported_version" | "unknown";
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -247,31 +342,6 @@ export interface components {
          * @enum {string}
          */
         Role: "admin" | "demo";
-        /** SourceConnectionRequest */
-        SourceConnectionRequest: {
-            /** Database */
-            database: string;
-            /** Host */
-            host: string;
-            /** Name */
-            name: string;
-            /**
-             * Password
-             * Format: password
-             * @default
-             */
-            password: string;
-            /** Port */
-            port: number;
-            /**
-             * Ssl
-             * @default false
-             */
-            ssl: boolean;
-            type: components["schemas"]["SourceType"];
-            /** Username */
-            username: string;
-        };
         /** SourceCreate */
         SourceCreate: {
             /** Database */
@@ -286,10 +356,9 @@ export interface components {
              * @default true
              */
             enabled: boolean;
+            engine: components["schemas"]["SourceEngine"];
             /** Host */
             host: string;
-            /** Id */
-            id: string;
             /** Name */
             name: string;
             /**
@@ -301,31 +370,119 @@ export interface components {
             /** Port */
             port: number;
             /**
-             * Ssl
-             * @default false
+             * Tls Mode
+             * @default disable
+             * @enum {string}
              */
-            ssl: boolean;
-            type: components["schemas"]["SourceType"];
+            tls_mode: "disable" | "require" | "verify-full";
+            /**
+             * Username
+             * @default
+             */
+            username: string;
+        };
+        /** SourceDetail */
+        SourceDetail: {
+            /** Capabilities */
+            capabilities: components["schemas"]["CapabilityOut"][];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Database */
+            database: string;
+            /** Description */
+            description: string;
+            /** Enabled */
+            enabled: boolean;
+            engine: components["schemas"]["SourceEngine"];
+            /** Has Password */
+            has_password: boolean;
+            /** Host */
+            host: string;
+            /** Id */
+            id: number;
+            /** Last Checked At */
+            last_checked_at: string | null;
+            /** Last Error */
+            last_error: string | null;
+            /** Name */
+            name: string;
+            /** Port */
+            port: number;
+            /** Server Version */
+            server_version: string | null;
+            status: components["schemas"]["SourceStatus"];
+            /**
+             * Tls Mode
+             * @enum {string}
+             */
+            tls_mode: "disable" | "require" | "verify-full";
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
             /** Username */
             username: string;
         };
-        /** SourceHealth */
-        SourceHealth: {
-            engine: components["schemas"]["SourceType"];
-            /** Message */
-            message: string;
-            /** Ready */
-            ready: boolean;
-            /** Source Id */
-            source_id: string;
-            /** Status */
-            status: string;
+        /**
+         * SourceEngine
+         * @enum {string}
+         */
+        SourceEngine: "postgres" | "mongodb";
+        /** SourceOut */
+        SourceOut: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Database */
+            database: string;
+            /** Description */
+            description: string;
+            /** Enabled */
+            enabled: boolean;
+            engine: components["schemas"]["SourceEngine"];
+            /** Has Password */
+            has_password: boolean;
+            /** Host */
+            host: string;
+            /** Id */
+            id: number;
+            /** Last Checked At */
+            last_checked_at: string | null;
+            /** Last Error */
+            last_error: string | null;
+            /** Name */
+            name: string;
+            /** Port */
+            port: number;
+            /** Server Version */
+            server_version: string | null;
+            status: components["schemas"]["SourceStatus"];
+            /**
+             * Tls Mode
+             * @enum {string}
+             */
+            tls_mode: "disable" | "require" | "verify-full";
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Username */
+            username: string;
         };
         /**
-         * SourceOut
-         * @description What the API returns. Credentials are never included, only whether one is set.
+         * SourceStatus
+         * @enum {string}
          */
-        SourceOut: {
+        SourceStatus: "healthy" | "degraded" | "failing";
+        /** SourceUpdate */
+        SourceUpdate: {
             /** Database */
             database: string;
             /**
@@ -338,30 +495,27 @@ export interface components {
              * @default true
              */
             enabled: boolean;
-            /** Has Password */
-            has_password: boolean;
+            engine: components["schemas"]["SourceEngine"];
             /** Host */
             host: string;
-            /** Id */
-            id: string;
             /** Name */
             name: string;
+            /** Password */
+            password?: string | null;
             /** Port */
             port: number;
             /**
-             * Ssl
-             * @default false
+             * Tls Mode
+             * @default disable
+             * @enum {string}
              */
-            ssl: boolean;
-            type: components["schemas"]["SourceType"];
-            /** Username */
+            tls_mode: "disable" | "require" | "verify-full";
+            /**
+             * Username
+             * @default
+             */
             username: string;
         };
-        /**
-         * SourceType
-         * @enum {string}
-         */
-        SourceType: "postgres" | "mongodb";
         /** UserOut */
         UserOut: {
             /** Read Only */
@@ -518,9 +672,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["CollectorStatus"];
                 };
             };
         };
@@ -540,9 +692,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["SourceOut"][];
                 };
             };
         };
@@ -566,8 +716,22 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SourceOut"];
+                    "application/json": components["schemas"]["SourceDetail"];
                 };
+            };
+            /** @description The connection test failed; nothing was saved */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Name already in use */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
@@ -589,7 +753,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["SourceConnectionRequest"];
+                "application/json": components["schemas"]["ConnectionTestRequest"];
             };
         };
         responses: {
@@ -599,9 +763,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["ConnectionTestResult"];
                 };
             };
             /** @description Validation Error */
@@ -615,12 +777,12 @@ export interface operations {
             };
         };
     };
-    getSourceHealth: {
+    getSource: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                source_id: string;
+                source_id: number;
             };
             cookie?: never;
         };
@@ -632,7 +794,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SourceHealth"];
+                    "application/json": components["schemas"]["SourceDetail"];
                 };
             };
             /** @description Validation Error */
@@ -646,12 +808,90 @@ export interface operations {
             };
         };
     };
-    getWorkloadPreview: {
+    updateSource: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                source_id: string;
+                source_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SourceUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SourceDetail"];
+                };
+            };
+            /** @description The connection test failed; nothing was saved */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Name already in use */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deleteSource: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                source_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    checkSource: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                source_id: number;
             };
             cookie?: never;
         };
@@ -663,9 +903,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["SourceDetail"];
                 };
             };
             /** @description Validation Error */

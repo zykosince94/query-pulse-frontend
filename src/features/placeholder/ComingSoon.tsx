@@ -49,21 +49,6 @@ export function WorkloadPage() {
   );
 }
 
-export function SourcesPage() {
-  return (
-    <ComingSoon
-      title="Data sources"
-      phase="Phase 2 · v0.2.0"
-      description="Connect PostgreSQL and MongoDB with read-only credentials."
-      items={[
-        "Sources list with engine badges and state",
-        "Add and edit, with a connection test before saving",
-        "Capability checklist: what works, and the exact fix for what doesn't",
-      ]}
-    />
-  );
-}
-
 export function FindingsPage() {
   return (
     <ComingSoon

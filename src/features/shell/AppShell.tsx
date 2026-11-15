@@ -19,7 +19,7 @@ const NAV: NavItem[] = [
 ];
 
 const linkBase =
-  "flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground [&_svg]:size-4";
+  "flex shrink-0 items-center gap-2 whitespace-nowrap rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground [&_svg]:size-4";
 const linkActive = "bg-secondary text-secondary-foreground";
 
 export function AppShell() {
