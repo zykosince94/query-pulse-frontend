@@ -302,3 +302,74 @@ describe("editing a source", () => {
     await waitFor(() => expect(backend.passwords.get(2)).toBe("n3w"));
   });
 });
+
+describe("editing after the code review", () => {
+  it("asks for the password again when the host changes (fix 1)", async () => {
+    backend.session = ADMIN_USER;
+    backend.sources = [makeSource({ id: 2, name: "Orders DB" })];
+    backend.passwords.set(2, "stored-secret");
+    const { user } = renderApp("/sources/2/edit");
+
+    const host = await screen.findByLabelText("Host");
+    await user.clear(host);
+    await user.type(host, "replica.example");
+
+    expect(screen.getByText(/Enter the password again: the server changed/)).toBeInTheDocument();
+    expect(screen.getByLabelText("Password")).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByRole("button", { name: "Test connection" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Save changes" })).toBeDisabled();
+
+    await user.type(screen.getByLabelText("Password"), "typed-again");
+    await user.click(screen.getByRole("button", { name: "Test connection" }));
+    await screen.findByText(/Connected to version/);
+    expect(backend.lastTestPassword).toBe("typed-again");
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
+    expect(await screen.findByText("replica.example:5432")).toBeInTheDocument();
+    expect(backend.passwords.get(2)).toBe("typed-again");
+  });
+
+  it("keeps the saved password for same-server changes like the database", async () => {
+    backend.session = ADMIN_USER;
+    backend.sources = [makeSource({ id: 2 })];
+    backend.passwords.set(2, "stored-secret");
+    const { user } = renderApp("/sources/2/edit");
+    const database = await screen.findByLabelText("Database");
+    await user.clear(database);
+    await user.type(database, "sales");
+    expect(screen.getByText(/Leave blank to keep the saved password/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Test connection" })).toBeEnabled();
+  });
+
+  it("renames or disables a source without a connection test (fix 3)", async () => {
+    backend.session = ADMIN_USER;
+    backend.sources = [
+      makeSource({ id: 6, name: "Orders DB", host: "down.example", status: "failing" }),
+    ];
+    const { user } = renderApp("/sources/6/edit");
+
+    const name = await screen.findByLabelText("Name");
+    await user.clear(name);
+    await user.type(name, "Orders (retired)");
+    await user.click(screen.getByRole("checkbox", { name: /Enabled/ }));
+
+    expect(screen.getByText("Connection settings unchanged: no test needed.")).toBeInTheDocument();
+    const save = screen.getByRole("button", { name: "Save changes" });
+    expect(save).toBeEnabled();
+    await user.click(save);
+
+    expect(await screen.findByRole("heading", { name: "Orders (retired)" })).toBeInTheDocument();
+    expect(screen.getByText("Disabled")).toBeInTheDocument();
+    expect(backend.updatesWithoutTest).toBe(1);
+  });
+
+  it("requires a test again once a connection setting changes", async () => {
+    backend.session = ADMIN_USER;
+    backend.sources = [makeSource({ id: 6 })];
+    const { user } = renderApp("/sources/6/edit");
+    await user.type(await screen.findByLabelText("Database"), "2");
+    expect(
+      screen.queryByText("Connection settings unchanged: no test needed."),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save changes" })).toBeDisabled();
+  });
+});

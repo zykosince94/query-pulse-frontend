@@ -149,8 +149,26 @@ function SourceForm({ existing }: { existing?: SourceDetail }) {
 
   const key = connectionKey(values);
   const currentTest = tested?.key === key ? tested.result : null;
-  const canSave = currentTest?.ok === true && values.name.trim().length >= 2;
-  const keepPassword = Boolean(existing && values.password === "");
+  const nameOk = values.name.trim().length >= 2;
+
+  // Editing: if the connection settings are exactly as saved (blank password = keep), only
+  // name, description or "enabled" changed, which needs no connection test. This keeps a
+  // source whose database is down renamable and disableable.
+  const connectionUnchanged = existing ? connectionKey(fromSource(existing)) === key : false;
+
+  // A saved password is only ever sent to the server it was saved for (the backend enforces
+  // this too). Pointing the source somewhere else means typing the password again.
+  const targetChanged = Boolean(
+    existing &&
+      (values.engine !== existing.engine ||
+        values.host.trim() !== existing.host ||
+        Number(values.port) !== existing.port ||
+        values.username.trim() !== existing.username),
+  );
+  const needsPassword = Boolean(existing?.has_password && targetChanged && values.password === "");
+  const keepPassword = Boolean(existing && values.password === "" && !targetChanged);
+
+  const canSave = nameOk && !needsPassword && (connectionUnchanged || currentTest?.ok === true);
 
   const connection = {
     engine: values.engine,
@@ -190,10 +208,17 @@ function SourceForm({ existing }: { existing?: SourceDetail }) {
   }
 
   const missingForTest =
+    needsPassword ||
     !values.host.trim() ||
     !values.database.trim() ||
     !values.port ||
     (values.engine === "postgres" && !values.username.trim());
+
+  const saveHint = !nameOk
+    ? "Name the source and test the connection to save."
+    : needsPassword
+      ? "Enter the password, then test the connection to save."
+      : "Test the connection to save.";
 
   return (
     <form onSubmit={onSubmit} noValidate className="flex flex-col gap-6">
@@ -295,9 +320,11 @@ function SourceForm({ existing }: { existing?: SourceDetail }) {
               id={id("password")}
               label="Password"
               hint={
-                existing?.has_password
-                  ? "Leave blank to keep the saved password. Passwords are encrypted and never shown again."
-                  : "Encrypted before it's stored, and never shown again."
+                needsPassword
+                  ? "Enter the password again: the server changed, and a saved password is only ever sent to the server it was saved for."
+                  : existing?.has_password && !targetChanged
+                    ? "Leave blank to keep the saved password. Passwords are encrypted and never shown again."
+                    : "Encrypted before it's stored, and never shown again."
               }
             >
               <Input
@@ -307,6 +334,7 @@ function SourceForm({ existing }: { existing?: SourceDetail }) {
                 onChange={(e) => set("password", e.target.value)}
                 autoComplete="new-password"
                 aria-describedby={`${id("password")}-hint`}
+                aria-invalid={needsPassword || undefined}
               />
             </Field>
           </div>
@@ -376,10 +404,11 @@ function SourceForm({ existing }: { existing?: SourceDetail }) {
           )}
         </Button>
         {!canSave && !save.isPending && (
+          <span className="text-xs text-muted-foreground">{saveHint}</span>
+        )}
+        {existing && connectionUnchanged && (
           <span className="text-xs text-muted-foreground">
-            {values.name.trim().length < 2
-              ? "Name the source and test the connection to save."
-              : "Test the connection to save."}
+            Connection settings unchanged: no test needed.
           </span>
         )}
       </div>

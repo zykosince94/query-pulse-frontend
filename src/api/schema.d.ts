@@ -167,7 +167,11 @@ export interface paths {
         get: operations["getSource"];
         /**
          * Update Source
-         * @description Replace a source's settings. The new settings must pass a connection test.
+         * @description Replace a source's settings.
+         *
+         *     Changing how to connect (engine, host, port, database, username, TLS, password) requires a
+         *     passing connection test. Changing only the name, description or `enabled` doesn't, so a
+         *     source whose database is down can still be renamed or disabled.
          */
         put: operations["updateSource"];
         post?: never;
@@ -765,6 +769,13 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ConnectionTestResult"];
                 };
+            };
+            /** @description A stored password can't be reused for a different server */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

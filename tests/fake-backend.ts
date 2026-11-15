@@ -30,6 +30,8 @@ export const backend = {
   /** Passwords kept "server-side" so tests can check what the client sent. */
   passwords: new Map<number, string>(),
   lastTestPassword: undefined as string | null | undefined,
+  /** PUTs that changed only name/description/enabled (no connection test). */
+  updatesWithoutTest: 0,
   nextId: 1,
   reset() {
     this.session = null;
@@ -37,6 +39,7 @@ export const backend = {
     this.sources = [];
     this.passwords = new Map();
     this.lastTestPassword = undefined;
+    this.updatesWithoutTest = 0;
     this.nextId = 1;
   },
 };
@@ -122,6 +125,30 @@ function guard(write: boolean) {
   return null;
 }
 
+export const RETARGET_MESSAGE =
+  "Enter the password again: the engine, host, port or username changed, and a saved password is only ever sent to the server it was saved for.";
+
+type ConnectionFields = Pick<SourceDetail, "engine" | "host" | "port" | "username"> &
+  Partial<Pick<SourceDetail, "database" | "tls_mode">>;
+
+/** Mirrors the backend: a stored password may only go to the server it was saved for. */
+function targetChanged(source: SourceDetail, fields: ConnectionFields) {
+  return (
+    source.engine !== fields.engine ||
+    source.host !== fields.host ||
+    source.port !== fields.port ||
+    source.username !== (fields.username ?? "")
+  );
+}
+
+function connectionChanged(source: SourceDetail, fields: ConnectionFields) {
+  return (
+    targetChanged(source, fields) ||
+    source.database !== fields.database ||
+    source.tls_mode !== (fields.tls_mode ?? "disable")
+  );
+}
+
 function summary(source: SourceDetail): Schemas["SourceOut"] {
   const { capabilities: _ignored, ...rest } = source;
   return rest;
@@ -177,6 +204,16 @@ export const handlers = [
     const denied = guard(true);
     if (denied) return denied;
     const body = (await request.json()) as Schemas["ConnectionTestRequest"];
+    const stored = body.source_id
+      ? backend.sources.find((s) => s.id === body.source_id)
+      : undefined;
+    if (
+      body.password == null &&
+      stored?.has_password &&
+      targetChanged(stored, { ...body, username: body.username ?? "" })
+    ) {
+      return HttpResponse.json({ detail: RETARGET_MESSAGE }, { status: 400 });
+    }
     backend.lastTestPassword =
       body.password ?? (body.source_id ? backend.passwords.get(body.source_id) : undefined);
     const outcome = probe(body.host);
@@ -234,6 +271,21 @@ export const handlers = [
     const existing = backend.sources[index];
     if (!existing) return notFoundSource();
     const body = (await request.json()) as Schemas["SourceUpdate"];
+    const fields = { ...body, username: body.username ?? "" };
+    if (body.password == null && !connectionChanged(existing, fields)) {
+      backend.updatesWithoutTest += 1;
+      const renamed: SourceDetail = {
+        ...existing,
+        name: body.name,
+        description: body.description ?? "",
+        enabled: body.enabled ?? true,
+      };
+      backend.sources[index] = renamed;
+      return HttpResponse.json<SourceDetail>(renamed);
+    }
+    if (body.password == null && existing.has_password && targetChanged(existing, fields)) {
+      return HttpResponse.json({ detail: RETARGET_MESSAGE }, { status: 400 });
+    }
     const outcome = probe(body.host);
     if (!outcome.ok) return HttpResponse.json({ detail: outcome.error.message }, { status: 400 });
     if (body.password !== null && body.password !== undefined) {
