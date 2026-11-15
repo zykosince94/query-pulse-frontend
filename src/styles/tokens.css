@@ -1,6 +1,5 @@
 /*
- * Design tokens shared by the Query Pulse and API Pulse frontends.
- * Copy this file as-is into the other product so both look like one family.
+ * Design tokens for Query Pulse.
  * Components never use raw colors: they use these tokens through Tailwind (bg-primary, ...).
  */
 :root {

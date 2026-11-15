@@ -104,8 +104,15 @@ scripts/gen-api.mjs API type generation
 ## Conventions
 
 - **Colors and radii come from `src/styles/tokens.css`** through Tailwind classes such as
-  `bg-primary` and `text-muted-foreground`, never raw hex values. API Pulse copies the same file.
+  `bg-primary` and `text-muted-foreground`, never raw hex values.
 - **Server data lives in TanStack Query**; local UI state uses `useState`.
 - **Write actions** check `useCanWrite()` so the demo user sees them disabled. The backend
   enforces the same rule with a 403 either way.
 - **New UI components**: `npx shadcn@latest add <component>` (configured in `components.json`).
+
+## License
+
+Licensed under the [Apache License 2.0](LICENSE). Copyright 2026 Rishabh Pandey.
+
+If you redistribute this project or a derivative of it, keep the [NOTICE](NOTICE) file with it,
+as section 4(d) of the license requires.
