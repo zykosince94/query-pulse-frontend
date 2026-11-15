@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # The contract: types are generated from the backend's committed spec on main.
+  QP_OPENAPI_SOURCE: https://raw.githubusercontent.com/zykosince94/query-pulse-backend/main/openapi.json
+
+jobs:
+  checks:
+    name: Lint, types, tests, build, API contract
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - name: API types match the backend spec (QP-AC-04, frontend half)
+        run: npm run gen:api:check
+
+  e2e:
+    name: Playwright against the real backend (QP-AC-02)
+    runs-on: ubuntu-latest
+    needs: checks
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: zykosince94/query-pulse-backend
+          path: backend
+      - name: Start the backend stack
+        working-directory: backend
+        run: docker compose up -d --build --wait --wait-timeout 180
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run e2e
+      - name: Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+      - name: Backend logs
+        if: failure()
+        working-directory: backend
+        run: docker compose logs
+      - if: always()
+        working-directory: backend
+        run: docker compose down -v
