@@ -97,7 +97,14 @@ test("journey: home → P1 → plan viewer shows the sequential scan (QP-AC-17)"
   test.setTimeout(COLLECTION_WAIT_MS + 60_000);
   await waitForP1(page);
 
-  // P1 is the most expensive operation by total time (the default ranking).
+  // P1 is the most expensive operation of its source by total time (the default ranking).
+  // Filtered to that source: with MongoDB also collected, another engine can top the list.
+  const sources = (await (await page.request.get("/api/sources")).json()) as {
+    id: number;
+    host: string;
+  }[];
+  const pg = sources.find((s) => s.host === "demo-postgres");
+  await page.goto(`/?source=${pg?.id}`);
   const first = page.getByRole("table").getByRole("row").nth(1);
   await expect(first.getByRole("link")).toHaveText(P1);
   await first.getByRole("link").click();

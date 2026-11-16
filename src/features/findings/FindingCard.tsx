@@ -4,6 +4,7 @@ import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { AIPanel } from "@/features/ai/AIPanel";
 import { useCanWrite } from "@/features/auth/queries";
 import { CopyButton, EngineBadge } from "@/features/sources/components";
 import { dateTime, timeAgo } from "@/lib/format";
@@ -233,6 +234,8 @@ export function FindingCard({
           ))}
         </ul>
       </div>
+
+      <AIPanel findingId={finding.id} />
 
       <div className="flex flex-wrap items-end justify-between gap-3 border-t pt-3">
         <p className="text-xs text-muted-foreground">

@@ -48,6 +48,14 @@ export const backend = {
   findingUpdates: [] as { id: number; status: string }[],
   /** MongoDB sources' latest serverStatus sample (Phase 6). */
   serverMetrics: new Map<number, Schemas["ServerMetrics"]>(),
+  /** AI (Phase 7): saved settings, answers per finding, how the next answer behaves. */
+  ai: defaultAI(),
+  aiAnswers: new Map<
+    number,
+    { explain: Schemas["AnswerOut"] | null; draft: Schemas["AnswerOut"] | null }
+  >(),
+  aiMode: "ok" as "ok" | "rejected" | "uncited" | "error",
+  aiRequests: 0,
   nextId: 1,
   reset() {
     this.session = null;
@@ -67,9 +75,26 @@ export const backend = {
     this.storedPlans = new Map();
     this.findingUpdates = [];
     this.serverMetrics = new Map();
+    this.ai = defaultAI();
+    this.aiAnswers = new Map();
+    this.aiMode = "ok";
+    this.aiRequests = 0;
     this.nextId = 1;
   },
 };
+
+function defaultAI(): Schemas["AISettingsOut"] {
+  return {
+    enabled: false,
+    provider: null,
+    model: null,
+    key_set: false,
+    key_hint: null,
+    providers: [{ id: "openai", label: "OpenAI" }],
+    provider_calls: 0,
+    updated_at: null,
+  };
+}
 
 function probe(host: string): ProbeOutcome {
   if (host === "badpass.example") {
@@ -863,6 +888,192 @@ handlers.push(
     return HttpResponse.json<Schemas["ServerMetrics"] | null>(
       backend.serverMetrics.get(id) ?? null,
     );
+  }),
+);
+
+// --- AI and settings (Phase 7) ------------------------------------------------------------------
+
+export const BAD_KEY = "sk-bad";
+export const AI_BUNDLE: Schemas["EvidenceBundleOut"]["document"] = {
+  bundle_version: 1,
+  note: "Query literals are shown as ? or '?'.",
+  items: [
+    { id: "rule", kind: "rule", data: { rule_id: "PG-SEQSCAN-HOT" } },
+    { id: "fact:table_rows", kind: "fact", data: { label: "Rows in the table", value: 200000 } },
+    {
+      id: "plan:0",
+      kind: "plan_node",
+      data: { node_type: "Seq Scan", filter: "(customer_id = $1)" },
+    },
+  ],
+};
+
+export function makeAnswer(
+  findingId: number,
+  overrides: Partial<Schemas["AnswerOut"]> = {},
+): Schemas["AnswerOut"] {
+  return {
+    finding_id: findingId,
+    kind: "explain",
+    status: "ok",
+    error: null,
+    summary: {
+      text: "Every lookup by customer reads all 200,000 orders.",
+      evidence: ["plan:0", "fact:table_rows"],
+      cited: true,
+    },
+    claims: [
+      {
+        text: "The plan is a sequential scan filtered on customer_id.",
+        evidence: ["plan:0"],
+        cited: true,
+      },
+      { text: "An index on customer_id would avoid it.", evidence: ["rule"], cited: true },
+    ],
+    caveats: ["Plans are estimates."],
+    language: null,
+    code: null,
+    provider: "openai",
+    model: "test-model",
+    evidence_hash: "abc",
+    current: true,
+    cached: false,
+    created_at: new Date().toISOString(),
+    ...overrides,
+  };
+}
+
+function answersFor(id: number) {
+  return backend.aiAnswers.get(id) ?? { explain: null, draft: null };
+}
+
+handlers.push(
+  http.get("/api/ai/settings", () => {
+    const denied = guard(false);
+    if (denied) return denied;
+    return HttpResponse.json<Schemas["AISettingsOut"]>({
+      ...backend.ai,
+      provider_calls: backend.aiRequests,
+    });
+  }),
+
+  http.put("/api/ai/settings", async ({ request }) => {
+    const denied = guard(true);
+    if (denied) return denied;
+    const body = (await request.json()) as Schemas["AISettingsUpdate"];
+    const key = body.api_key ?? null;
+    if (body.enabled) {
+      if (!key && !backend.ai.key_set) {
+        return HttpResponse.json({ detail: "Save an API key to turn AI on." }, { status: 400 });
+      }
+      backend.aiRequests += 1;
+      if (key === BAD_KEY) {
+        return HttpResponse.json(
+          { detail: "OpenAI rejected the API key. Check it, or create a new one." },
+          { status: 400 },
+        );
+      }
+    }
+    backend.ai = {
+      ...backend.ai,
+      provider: body.provider,
+      model: body.model,
+      enabled: body.enabled ?? false,
+      key_set: backend.ai.key_set || Boolean(key),
+      key_hint: key ? `…${key.slice(-4)}` : backend.ai.key_hint,
+      updated_at: new Date().toISOString(),
+    };
+    return HttpResponse.json<Schemas["AISettingsOut"]>({
+      ...backend.ai,
+      provider_calls: backend.aiRequests,
+    });
+  }),
+
+  http.delete("/api/ai/settings/key", () => {
+    const denied = guard(true);
+    if (denied) return denied;
+    backend.ai = { ...backend.ai, key_set: false, key_hint: null, enabled: false };
+    return HttpResponse.json<Schemas["AISettingsOut"]>({
+      ...backend.ai,
+      provider_calls: backend.aiRequests,
+    });
+  }),
+
+  http.get("/api/settings", () => {
+    const denied = guard(false);
+    if (denied) return denied;
+    return HttpResponse.json<Schemas["RuntimeSettings"]>({
+      retention_days: 14,
+      collector_interval_seconds: 60,
+      rules_interval_seconds: 60,
+      rules_window_minutes: 60,
+    });
+  }),
+
+  http.get("/api/findings/:id/ai/bundle", ({ params }) => {
+    const denied = guard(false);
+    if (denied) return denied;
+    return HttpResponse.json<Schemas["EvidenceBundleOut"]>({
+      finding_id: Number(params.id),
+      evidence_hash: "abc",
+      items: AI_BUNDLE.items as Schemas["EvidenceBundleOut"]["items"],
+      document: AI_BUNDLE,
+    });
+  }),
+
+  http.get("/api/findings/:id/ai", ({ params }) => {
+    const denied = guard(false);
+    if (denied) return denied;
+    return HttpResponse.json<Schemas["FindingAI"]>({
+      enabled: backend.ai.enabled,
+      ...answersFor(Number(params.id)),
+    });
+  }),
+
+  http.post("/api/findings/:id/ai/:kind", ({ params }) => {
+    const denied = guard(true);
+    if (denied) return denied;
+    if (!backend.ai.enabled) {
+      return HttpResponse.json(
+        { detail: "AI is off. An admin can turn it on in Settings." },
+        { status: 409 },
+      );
+    }
+    backend.aiRequests += 1;
+    if (backend.aiMode === "error") {
+      return HttpResponse.json(
+        { detail: "OpenAI is rate-limiting this key. Try again in a minute." },
+        { status: 502 },
+      );
+    }
+    const id = Number(params.id);
+    const kind = params.kind as "explain" | "draft";
+    const answer =
+      backend.aiMode === "rejected"
+        ? makeAnswer(id, {
+            kind,
+            status: "rejected",
+            error: "The answer cited evidence that wasn't sent (plan:9.9), so it was discarded.",
+            summary: null,
+            claims: [],
+            caveats: [],
+          })
+        : kind === "draft"
+          ? makeAnswer(id, {
+              kind,
+              language: "sql",
+              code: "CREATE INDEX CONCURRENTLY ON public.orders (customer_id);",
+              caveats: [],
+            })
+          : makeAnswer(id, {
+              kind,
+              claims:
+                backend.aiMode === "uncited"
+                  ? [{ text: "It will be fast afterwards.", evidence: [], cited: false }]
+                  : makeAnswer(id).claims,
+            });
+    if (answer.status === "ok") backend.aiAnswers.set(id, { ...answersFor(id), [kind]: answer });
+    return HttpResponse.json<Schemas["AnswerOut"]>(answer);
   }),
 );
 

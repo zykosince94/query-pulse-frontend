@@ -50,9 +50,18 @@ and the main README.
   finding cites**, with the cited node outlined. The admin can dismiss, resolve and reopen; the
   navigation shows how many are open.
 - **Findings on operation detail**: an operation's findings appear above its plan.
+- **AI assistant on each finding** (optional, off by default): explain the finding or draft a
+  fix, shown as advisory with every claim's cited evidence, uncited claims flagged, rejected
+  answers shown as errors, drafts to copy (never run), and **View what is sent**: the exact
+  redacted evidence bundle. Only the admin can ask; everyone can read the answers.
+- **Settings**: the AI provider, model and API key (masked to its last four characters; saved
+  only after the provider accepts it; deletable), and the collection and retention values
+  (read-only, from the backend's environment).
+- **Accessibility**: every main screen is checked with axe in light and dark mode in the
+  end-to-end suite (no serious or critical violations); muted text meets WCAG AA contrast.
 - **Typed API client** generated from the backend's `openapi.json`.
 
-Settings is a placeholder that says which phase delivers it.
+All end-to-end journeys run with AI off, which is its default (QP-AC-26).
 
 ## Quick start
 
@@ -123,8 +132,9 @@ src/
     sources/        data sources: list, add/edit form, detail, checklist, collection and server panels
     workload/       health strip, explorer, operation page, plan viewers (PostgreSQL, MongoDB)
     findings/       findings page, finding card, queries
+    ai/             the AI panel on a finding, AI queries
+    settings/       the Settings page
   components/charts/  ECharts wrapper (lazy-loaded) and the one-series TrendChart
-    placeholder/    pages for screens that later phases build
   components/ui/    shadcn/ui-style building blocks (button, input, card, ...)
   styles/           tokens.css (shared design tokens) and Tailwind setup
 tests/              Vitest tests; fake-backend.ts mocks the API with types from the spec

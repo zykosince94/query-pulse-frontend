@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import { LoginPage } from "@/features/auth/LoginPage";
 import { currentUserQuery } from "@/features/auth/queries";
 import { FindingsPage, validateFindingsSearch } from "@/features/findings/FindingsPage";
-import { SettingsPage } from "@/features/placeholder/ComingSoon";
+import { SettingsPage } from "@/features/settings/SettingsPage";
 import { AppShell } from "@/features/shell/AppShell";
 import { SourceDetailPage } from "@/features/sources/SourceDetailPage";
 import { EditSourcePage, NewSourcePage } from "@/features/sources/SourceFormPage";
