@@ -34,14 +34,15 @@ export function StatusBadge({ status }: { status: Source["status"] }) {
   );
 }
 
-function CopyButton({ text }: { text: string }) {
+/** Copies text to the clipboard. `label` names what's copied, for screen readers. */
+export function CopyButton({ text, label = "Copy fix" }: { text: string; label?: string }) {
   const [copied, setCopied] = useState(false);
   return (
     <Button
       type="button"
       variant="ghost"
       size="sm"
-      aria-label={copied ? "Copied" : "Copy fix"}
+      aria-label={copied ? "Copied" : label}
       onClick={async () => {
         try {
           await navigator.clipboard.writeText(text);

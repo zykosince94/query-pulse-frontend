@@ -42,6 +42,10 @@ export const backend = {
   /** The query string of every GET /api/operations, to check what the explorer asked for. */
   operationRequests: [] as URLSearchParams[],
   captures: 0,
+  findings: [] as Schemas["FindingOut"][],
+  /** Stored plans by id (what GET /api/plans/{id} returns). */
+  storedPlans: new Map<number, Schemas["OperationPlan"]>(),
+  findingUpdates: [] as { id: number; status: string }[],
   nextId: 1,
   reset() {
     this.session = null;
@@ -57,6 +61,9 @@ export const backend = {
     this.plans = new Map();
     this.operationRequests = [];
     this.captures = 0;
+    this.findings = [];
+    this.storedPlans = new Map();
+    this.findingUpdates = [];
     this.nextId = 1;
   },
 };
@@ -547,6 +554,136 @@ handlers.push(
     const plan = capturedPlan(id);
     backend.plans.set(id, plan);
     return HttpResponse.json<Schemas["OperationPlan"]>(plan);
+  }),
+);
+
+// --- findings (Phase 5) -------------------------------------------------------------------------
+
+export function makeFinding(overrides: Partial<Schemas["FindingOut"]> = {}): Schemas["FindingOut"] {
+  const now = new Date().toISOString();
+  return {
+    id: overrides.id ?? backend.nextId++,
+    source_id: 1,
+    source_name: "Orders DB",
+    rule_id: "PG-SEQSCAN-HOT",
+    rule_title: "Sequential scan in a hot query",
+    target_kind: "operation",
+    target_key: "operation:11",
+    fingerprint_id: 11,
+    relation: "public.orders",
+    query: "SELECT id, status, total FROM orders WHERE customer_id = $1",
+    title: "Sequential scan on public.orders in a hot query",
+    summary:
+      "This query takes 54% of the source's execution time, and its plan reads all 200,000 rows.",
+    confidence: "high",
+    evidence_strength: "plan",
+    suggested_action: "Create an index on public.orders (customer_id).",
+    action_sql: "CREATE INDEX CONCURRENTLY ON public.orders (customer_id);",
+    facts: [
+      { key: "share_of_total_time", label: "Share of execution time", value: 0.54 },
+      { key: "table_rows", label: "Rows in the table", value: 200000 },
+      { key: "total_exec_time_ms", label: "Execution time in the window (ms)", value: 5600 },
+    ],
+    evidence: [
+      {
+        kind: "operation",
+        label: "1,000 calls, 5,600 ms in the window",
+        available: true,
+        fingerprint_id: 11,
+        start: "2026-11-16T11:00:00Z",
+        end: "2026-11-16T12:00:00Z",
+      },
+      {
+        kind: "plan",
+        label: "Plan #7: Seq Scan on orders",
+        available: true,
+        fingerprint_id: 11,
+        plan_id: 7,
+        node_path: "0",
+      },
+      {
+        kind: "relation_stat",
+        label: "public.orders: 200,000 live rows",
+        available: true,
+        relation_stat_id: 3,
+      },
+    ],
+    status: "open",
+    status_changed_by: "rules",
+    status_changed_at: now,
+    first_seen_at: now,
+    last_seen_at: now,
+    resolved_at: null,
+    ...overrides,
+  };
+}
+
+handlers.push(
+  http.get("/api/findings", ({ request }) => {
+    const denied = guard(false);
+    if (denied) return denied;
+    const query = new URL(request.url).searchParams;
+    const scoped = backend.findings.filter(
+      (f) =>
+        (!query.get("source_id") || f.source_id === Number(query.get("source_id"))) &&
+        (!query.get("rule_id") || f.rule_id === query.get("rule_id")) &&
+        (!query.get("operation_id") || f.fingerprint_id === Number(query.get("operation_id"))),
+    );
+    const count = (status: string) => scoped.filter((f) => f.status === status).length;
+    return HttpResponse.json<Schemas["FindingList"]>({
+      counts: { open: count("open"), resolved: count("resolved"), dismissed: count("dismissed") },
+      findings: scoped.filter((f) => !query.get("status") || f.status === query.get("status")),
+    });
+  }),
+
+  http.patch("/api/findings/:id", async ({ request, params }) => {
+    const denied = guard(true);
+    if (denied) return denied;
+    const index = backend.findings.findIndex((f) => f.id === Number(params.id));
+    const existing = backend.findings[index];
+    if (!existing) return HttpResponse.json({ detail: "Finding not found" }, { status: 404 });
+    const body = (await request.json()) as Schemas["FindingStatusUpdate"];
+    backend.findingUpdates.push({ id: existing.id, status: body.status });
+    const updated: Schemas["FindingOut"] = {
+      ...existing,
+      status: body.status,
+      status_changed_by: "user",
+      resolved_at: body.status === "resolved" ? new Date().toISOString() : null,
+    };
+    backend.findings[index] = updated;
+    return HttpResponse.json<Schemas["FindingOut"]>(updated);
+  }),
+
+  http.get("/api/rules", () => {
+    const denied = guard(false);
+    if (denied) return denied;
+    return HttpResponse.json<Schemas["RuleOut"][]>([
+      {
+        id: "PG-SEQSCAN-HOT",
+        title: "Sequential scan in a hot query",
+        description: "",
+        evidence_strength: "plan",
+        confidence: "high",
+        thresholds: {},
+      },
+      {
+        id: "PG-UNUSED-INDEX",
+        title: "Unused index",
+        description: "",
+        evidence_strength: "statistics",
+        confidence: "medium",
+        thresholds: {},
+      },
+    ]);
+  }),
+
+  http.get("/api/plans/:id", ({ params }) => {
+    const denied = guard(false);
+    if (denied) return denied;
+    const plan = backend.storedPlans.get(Number(params.id));
+    return plan
+      ? HttpResponse.json<Schemas["OperationPlan"]>(plan)
+      : HttpResponse.json({ detail: "Plan not found" }, { status: 404 });
   }),
 );
 

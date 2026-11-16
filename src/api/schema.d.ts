@@ -115,6 +115,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/findings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Findings
+         * @description Findings, most confident and most recently seen first, with counts per status.
+         */
+        get: operations["listFindings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/findings/{finding_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Finding */
+        get: operations["getFinding"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Finding
+         * @description Dismiss, resolve or reopen a finding.
+         *
+         *     A dismissed finding stays dismissed however often its rule fires again. A resolved one
+         *     reopens if the problem shows up in evidence collected after it was resolved.
+         */
+        patch: operations["updateFinding"];
+        trace?: never;
+    };
     "/api/operations": {
         parameters: {
             query?: never;
@@ -173,6 +217,49 @@ export interface paths {
          * @description Plan the statement again now with EXPLAIN (GENERIC_PLAN). Never executes it.
          */
         post: operations["captureOperationPlan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/plans/{plan_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Plan
+         * @description One stored plan by id, exactly as captured.
+         *
+         *     Plans are immutable evidence: a finding cites the plan it was based on, and this returns
+         *     that plan even after a newer one has been captured for the same operation.
+         */
+        get: operations["getPlan"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Rules
+         * @description The rule catalogue: what each rule checks, its evidence and its thresholds.
+         */
+        get: operations["listRules"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -438,6 +525,150 @@ export interface components {
          * @enum {string}
          */
         ErrorCode: "unreachable" | "timeout" | "auth_failed" | "tls" | "database_not_found" | "permission_denied" | "unsupported_version" | "unknown";
+        /**
+         * EvidenceOut
+         * @description A link to the data a finding cites.
+         *
+         *     - operation: observations of `fingerprint_id` between `start` and `end`
+         *     - plan: plan `plan_id` of `fingerprint_id`, pointing at node `node_path`
+         *     - relation_stat: table or index sample `relation_stat_id`
+         *
+         *     `available` is false once retention has deleted what it points at.
+         */
+        EvidenceOut: {
+            /** Available */
+            available: boolean;
+            /** End */
+            end?: string | null;
+            /** Fingerprint Id */
+            fingerprint_id?: number | null;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "operation" | "plan" | "relation_stat";
+            /** Label */
+            label: string;
+            /** Node Path */
+            node_path?: string | null;
+            /** Plan Id */
+            plan_id?: number | null;
+            /** Relation Stat Id */
+            relation_stat_id?: number | null;
+            /** Start */
+            start?: string | null;
+        };
+        /** FindingCounts */
+        FindingCounts: {
+            /** Dismissed */
+            dismissed: number;
+            /** Open */
+            open: number;
+            /** Resolved */
+            resolved: number;
+        };
+        /**
+         * FindingFact
+         * @description One number or value behind a finding, kept with it so it stays readable after the
+         *     underlying observations age out.
+         */
+        FindingFact: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Value */
+            value: number | string | boolean | null;
+        };
+        /** FindingList */
+        FindingList: {
+            counts: components["schemas"]["FindingCounts"];
+            /** Findings */
+            findings: components["schemas"]["FindingOut"][];
+        };
+        /** FindingOut */
+        FindingOut: {
+            /** Action Sql */
+            action_sql: string | null;
+            /**
+             * Confidence
+             * @enum {string}
+             */
+            confidence: "high" | "medium" | "low";
+            /** Evidence */
+            evidence: components["schemas"]["EvidenceOut"][];
+            /**
+             * Evidence Strength
+             * @enum {string}
+             */
+            evidence_strength: "plan" | "statistics";
+            /** Facts */
+            facts: components["schemas"]["FindingFact"][];
+            /** Fingerprint Id */
+            fingerprint_id: number | null;
+            /**
+             * First Seen At
+             * Format: date-time
+             */
+            first_seen_at: string;
+            /** Id */
+            id: number;
+            /**
+             * Last Seen At
+             * Format: date-time
+             */
+            last_seen_at: string;
+            /** Query */
+            query: string | null;
+            /** Relation */
+            relation: string | null;
+            /** Resolved At */
+            resolved_at: string | null;
+            /** Rule Id */
+            rule_id: string;
+            /** Rule Title */
+            rule_title: string;
+            /** Source Id */
+            source_id: number;
+            /** Source Name */
+            source_name: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "open" | "resolved" | "dismissed";
+            /**
+             * Status Changed At
+             * Format: date-time
+             */
+            status_changed_at: string;
+            /**
+             * Status Changed By
+             * @enum {string}
+             */
+            status_changed_by: "rules" | "user";
+            /** Suggested Action */
+            suggested_action: string;
+            /** Summary */
+            summary: string;
+            /** Target Key */
+            target_key: string;
+            /**
+             * Target Kind
+             * @enum {string}
+             */
+            target_kind: "operation" | "index";
+            /** Title */
+            title: string;
+        };
+        /** FindingStatusUpdate */
+        FindingStatusUpdate: {
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "open" | "resolved" | "dismissed";
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -646,6 +877,29 @@ export interface components {
          * @enum {string}
          */
         Role: "admin" | "demo";
+        /** RuleOut */
+        RuleOut: {
+            /**
+             * Confidence
+             * @enum {string}
+             */
+            confidence: "high" | "medium" | "low";
+            /** Description */
+            description: string;
+            /**
+             * Evidence Strength
+             * @enum {string}
+             */
+            evidence_strength: "plan" | "statistics";
+            /** Id */
+            id: string;
+            /** Thresholds */
+            thresholds: {
+                [key: string]: number;
+            };
+            /** Title */
+            title: string;
+        };
         /** SourceCreate */
         SourceCreate: {
             /** Database */
@@ -1041,6 +1295,108 @@ export interface operations {
             };
         };
     };
+    listFindings: {
+        parameters: {
+            query?: {
+                /** @description Only findings with this status (default: all) */
+                status?: ("open" | "resolved" | "dismissed") | null;
+                source_id?: number | null;
+                rule_id?: string | null;
+                /** @description Only findings about this operation */
+                operation_id?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FindingList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getFinding: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                finding_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FindingOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateFinding: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                finding_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FindingStatusUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FindingOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     listOperations: {
         parameters: {
             query?: {
@@ -1186,6 +1542,57 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    getPlan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                plan_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OperationPlan"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listRules: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuleOut"][];
+                };
             };
         };
     };

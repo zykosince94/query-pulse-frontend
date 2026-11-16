@@ -142,11 +142,11 @@ describe("app shell", () => {
 
 describe("redirect after sign-in keeps same-site detail", () => {
   it("preserves the query string and hash of the requested page", async () => {
-    const { user, router } = renderApp("/login?redirect=%2Ffindings%3Fstatus%3Dopen%23top");
+    const { user, router } = renderApp("/login?redirect=%2Ffindings%3Fstatus%3Ddismissed%23top");
     await user.type(await screen.findByLabelText("Username"), ADMIN.username);
     await user.type(screen.getByLabelText("Password"), ADMIN.password);
     await user.click(screen.getByRole("button", { name: "Sign in" }));
     expect(await screen.findByRole("heading", { name: "Findings" })).toBeInTheDocument();
-    expect(router.state.location.href).toBe("/findings?status=open#top");
+    expect(router.state.location.href).toBe("/findings?status=dismissed#top");
   });
 });

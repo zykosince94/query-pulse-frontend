@@ -1,9 +1,11 @@
+import { useQuery } from "@tanstack/react-query";
 import { Link, Outlet } from "@tanstack/react-router";
 import { Activity, Database, Gauge, LogOut, Settings, TriangleAlert } from "lucide-react";
 import type { ComponentType, SVGProps } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useCurrentUser, useLogout } from "@/features/auth/queries";
+import { findingsQuery } from "@/features/findings/queries";
 
 type NavItem = {
   to: "/" | "/sources" | "/findings" | "/settings";
@@ -25,6 +27,8 @@ const linkActive = "bg-secondary text-secondary-foreground";
 export function AppShell() {
   const user = useCurrentUser();
   const logout = useLogout();
+  const open = useQuery({ ...findingsQuery({ status: "open" }), enabled: Boolean(user) });
+  const openCount = open.data?.counts.open ?? 0;
   if (!user) return null;
 
   return (
@@ -45,6 +49,11 @@ export function AppShell() {
             >
               <Icon aria-hidden />
               {label}
+              {to === "/findings" && openCount > 0 && (
+                <Badge variant="warning" className="ml-auto" aria-label={`${openCount} open`}>
+                  {openCount}
+                </Badge>
+              )}
             </Link>
           ))}
         </nav>

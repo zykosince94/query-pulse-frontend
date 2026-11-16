@@ -1,10 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { RefreshCw, TriangleAlert } from "lucide-react";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useCanWrite } from "@/features/auth/queries";
+import { planQuery } from "@/features/findings/queries";
 import { dateTime, timeAgo } from "@/lib/format";
 import { count } from "@/lib/numbers";
 import { cn } from "@/lib/utils";
@@ -30,8 +32,17 @@ function Condition({ label, value }: { label: string; value: string | null | und
   );
 }
 
-function NodeView({ node, rootCost }: { node: PlanNode; rootCost: number }) {
+function NodeView({
+  node,
+  rootCost,
+  highlightPath,
+}: {
+  node: PlanNode;
+  rootCost: number;
+  highlightPath?: string | undefined;
+}) {
   const fullScan = isFullScan(node);
+  const cited = highlightPath === node.path;
   const share = rootCost > 0 ? Math.min(1, node.total_cost / rootCost) : 0;
   const target = node.relation_name
     ? `${node.schema_name ? `${node.schema_name}.` : ""}${node.relation_name}`
@@ -43,6 +54,7 @@ function NodeView({ node, rootCost }: { node: PlanNode; rootCost: number }) {
         className={cn(
           "flex flex-col gap-1.5 rounded-md border bg-card px-3 py-2",
           fullScan && "border-warning/60 bg-warning-soft",
+          cited && "ring-2 ring-primary",
         )}
       >
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -61,6 +73,7 @@ function NodeView({ node, rootCost }: { node: PlanNode; rootCost: number }) {
               using <span className="font-mono font-medium">{node.index_name}</span>
             </span>
           )}
+          {cited && <Badge variant="default">Cited by the finding</Badge>}
           {fullScan && (
             <Badge variant="warning">
               <TriangleAlert aria-hidden className="size-3" />
@@ -104,7 +117,12 @@ function NodeView({ node, rootCost }: { node: PlanNode; rootCost: number }) {
       {node.children && node.children.length > 0 && (
         <ul className="ml-3 flex flex-col gap-2 border-l pl-3 sm:ml-5 sm:pl-4">
           {node.children.map((child) => (
-            <NodeView key={child.path} node={child} rootCost={rootCost} />
+            <NodeView
+              key={child.path}
+              node={child}
+              rootCost={rootCost}
+              highlightPath={highlightPath}
+            />
           ))}
         </ul>
       )}
@@ -136,7 +154,17 @@ function CaptureButton({ operationId, label }: { operationId: number; label: str
   );
 }
 
-function PlanBody({ plan, operationId }: { plan: OperationPlan; operationId: number }) {
+function PlanBody({
+  plan,
+  operationId,
+  highlightPath,
+  cited = false,
+}: {
+  plan: OperationPlan;
+  operationId: number;
+  highlightPath?: string | undefined;
+  cited?: boolean;
+}) {
   if (plan.status === "unavailable") {
     return (
       <Alert>
@@ -172,13 +200,13 @@ function PlanBody({ plan, operationId }: { plan: OperationPlan; operationId: num
   return (
     <div className="flex flex-col gap-4">
       <ul aria-label="Plan nodes" className="flex flex-col gap-2">
-        <NodeView node={plan.root} rootCost={plan.root.total_cost} />
+        <NodeView node={plan.root} rootCost={plan.root.total_cost} highlightPath={highlightPath} />
       </ul>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-xs text-muted-foreground">
           Captured {dateTime(plan.captured_at)} · last checked {timeAgo(plan.checked_at)}
         </p>
-        <CaptureButton operationId={operationId} label="Re-capture" />
+        {!cited && <CaptureButton operationId={operationId} label="Re-capture" />}
       </div>
       <details className="text-xs">
         <summary className="cursor-pointer select-none text-muted-foreground">
@@ -192,11 +220,25 @@ function PlanBody({ plan, operationId }: { plan: OperationPlan; operationId: num
   );
 }
 
-/** The PostgreSQL plan viewer: the generic plan's node tree with estimated cost and rows. */
-export function PlanViewer({ operationId }: { operationId: number }) {
-  const plan = useQuery(operationPlanQuery(operationId));
+/**
+ * The PostgreSQL plan viewer: the generic plan's node tree with estimated cost and rows.
+ * With `citedPlanId` it shows that exact stored plan (the one a finding cites, which may be
+ * older than the latest) and outlines the cited node.
+ */
+export function PlanViewer({
+  operationId,
+  citedPlanId,
+  highlightPath,
+}: {
+  operationId: number;
+  citedPlanId?: number | undefined;
+  highlightPath?: string | undefined;
+}) {
+  const latest = useQuery({ ...operationPlanQuery(operationId), enabled: !citedPlanId });
+  const cited = useQuery({ ...planQuery(citedPlanId ?? 0), enabled: Boolean(citedPlanId) });
+  const plan = citedPlanId ? cited : latest;
   return (
-    <Card>
+    <Card id="plan">
       <CardHeader>
         <CardTitle className="text-base">Query plan</CardTitle>
         <CardDescription>
@@ -204,7 +246,23 @@ export function PlanViewer({ operationId }: { operationId: number }) {
           values. The statement is never executed to get it.
         </CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="flex flex-col gap-4">
+        {citedPlanId && (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-muted px-3 py-2 text-sm">
+            <span>
+              Showing plan #{citedPlanId}, the one a finding cites
+              {cited.data?.captured_at ? ` (captured ${dateTime(cited.data.captured_at)})` : ""}.
+            </span>
+            <Link
+              to="/operations/$operationId"
+              params={{ operationId }}
+              search={(previous) => ({ ...previous, plan: undefined, node: undefined })}
+              className="text-primary hover:underline"
+            >
+              Show the latest plan
+            </Link>
+          </div>
+        )}
         {plan.isPending ? (
           <p className="text-sm text-muted-foreground" role="status">
             Loading the plan…
@@ -212,7 +270,12 @@ export function PlanViewer({ operationId }: { operationId: number }) {
         ) : plan.error ? (
           <Alert variant="destructive">Couldn't load the plan: {plan.error.message}</Alert>
         ) : (
-          <PlanBody plan={plan.data} operationId={operationId} />
+          <PlanBody
+            plan={plan.data}
+            operationId={operationId}
+            highlightPath={highlightPath}
+            cited={Boolean(citedPlanId)}
+          />
         )}
       </CardContent>
     </Card>

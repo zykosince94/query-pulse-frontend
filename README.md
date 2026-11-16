@@ -33,9 +33,16 @@ and the main README.
 - **PostgreSQL plan viewer**: the generic plan's node tree with estimated cost and rows,
   conditions and sort keys, sequential scans highlighted, the raw EXPLAIN JSON, and a clear
   reason when there is no plan. The admin can re-capture a plan.
+- **Findings**: findings from the backend's rules, filtered by status (open, dismissed,
+  resolved), source and rule in the URL. Each shows its rule, confidence, whether it rests on a
+  captured plan or a statistics heuristic, the facts behind it, the suggested SQL with a Copy
+  button (never run for you), and its evidence links. A plan link opens the **exact plan the
+  finding cites**, with the cited node outlined. The admin can dismiss, resolve and reopen; the
+  navigation shows how many are open.
+- **Findings on operation detail**: an operation's findings appear above its plan.
 - **Typed API client** generated from the backend's `openapi.json`.
 
-Findings and Settings are placeholders that say which phase delivers them.
+Settings is a placeholder that says which phase delivers it.
 
 ## Quick start
 

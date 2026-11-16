@@ -6,6 +6,8 @@ import { Alert } from "@/components/ui/alert";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import { FindingCard } from "@/features/findings/FindingCard";
+import { findingsQuery } from "@/features/findings/queries";
 import { EngineBadge } from "@/features/sources/components";
 import { dateTime } from "@/lib/format";
 import { count, duration } from "@/lib/numbers";
@@ -31,6 +33,7 @@ export function OperationPage() {
   const search = route.useSearch();
   const navigate = route.useNavigate();
   const detail = useQuery(operationQuery(operationId, windowParams(search)));
+  const findings = useQuery(findingsQuery({ operation_id: operationId }));
 
   const back = (
     <Link
@@ -168,7 +171,18 @@ export function OperationPage() {
         </CardContent>
       </Card>
 
-      <PlanViewer operationId={operationId} />
+      {findings.data && findings.data.findings.length > 0 && (
+        <section aria-labelledby="operation-findings" className="flex flex-col gap-3">
+          <h2 id="operation-findings" className="text-lg font-semibold">
+            Findings
+          </h2>
+          {findings.data.findings.map((finding) => (
+            <FindingCard key={finding.id} finding={finding} showTarget={false} />
+          ))}
+        </section>
+      )}
+
+      <PlanViewer operationId={operationId} citedPlanId={search.plan} highlightPath={search.node} />
     </div>
   );
 }

@@ -79,6 +79,22 @@ export function validateExplorerSearch(search: Record<string, unknown>): Explore
   };
 }
 
+/** The operation page: its time range, plus the plan (and node) a finding cites, if any. */
+export type OperationSearch = WindowSearch & {
+  plan?: number | undefined;
+  node?: string | undefined;
+};
+
+export function validateOperationSearch(search: Record<string, unknown>): OperationSearch {
+  const plan = Number(search.plan);
+  const validPlan = Number.isInteger(plan) && plan > 0;
+  const node =
+    validPlan && typeof search.node === "string" && /^\d+(\.\d+)*$/.test(search.node)
+      ? search.node
+      : undefined;
+  return { ...validateWindowSearch(search), plan: validPlan ? plan : undefined, node };
+}
+
 /** The API's window parameters for a search: `{minutes}` or `{start, end}`. */
 export function windowParams(search: WindowSearch): {
   minutes?: number;

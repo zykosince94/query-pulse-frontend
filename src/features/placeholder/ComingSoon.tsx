@@ -33,21 +33,6 @@ export function ComingSoon({ title, description, phase, items }: Props) {
   );
 }
 
-export function FindingsPage() {
-  return (
-    <ComingSoon
-      title="Findings"
-      phase="Phase 5 · v0.5.0"
-      description="Rule-based findings, each backed by evidence you can open."
-      items={[
-        "Findings with confidence and evidence links to operations and plans",
-        "Suggested manual next steps (never applied automatically)",
-        "Open, resolved and dismissed status",
-      ]}
-    />
-  );
-}
-
 export function SettingsPage() {
   return (
     <ComingSoon

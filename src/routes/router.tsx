@@ -15,13 +15,14 @@ import { ApiError } from "@/api/client";
 import { Button } from "@/components/ui/button";
 import { LoginPage } from "@/features/auth/LoginPage";
 import { currentUserQuery } from "@/features/auth/queries";
-import { FindingsPage, SettingsPage } from "@/features/placeholder/ComingSoon";
+import { FindingsPage, validateFindingsSearch } from "@/features/findings/FindingsPage";
+import { SettingsPage } from "@/features/placeholder/ComingSoon";
 import { AppShell } from "@/features/shell/AppShell";
 import { SourceDetailPage } from "@/features/sources/SourceDetailPage";
 import { EditSourcePage, NewSourcePage } from "@/features/sources/SourceFormPage";
 import { SourcesPage } from "@/features/sources/SourcesPage";
 import { OperationPage } from "@/features/workload/OperationPage";
-import { validateExplorerSearch, validateWindowSearch } from "@/features/workload/search";
+import { validateExplorerSearch, validateOperationSearch } from "@/features/workload/search";
 import { WorkloadPage } from "@/features/workload/WorkloadPage";
 
 export type RouterContext = { queryClient: QueryClient };
@@ -136,7 +137,7 @@ const operationRoute = createRoute({
     },
     stringify: ({ operationId }: { operationId: number }) => ({ operationId: String(operationId) }),
   },
-  validateSearch: validateWindowSearch,
+  validateSearch: validateOperationSearch,
   component: OperationPage,
 });
 const sourcesRoute = createRoute({
@@ -181,6 +182,7 @@ const editSourceRoute = createRoute({
 const findingsRoute = createRoute({
   getParentRoute: () => appRoute,
   path: "/findings",
+  validateSearch: validateFindingsSearch,
   component: FindingsPage,
 });
 const settingsRoute = createRoute({
