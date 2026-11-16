@@ -18,9 +18,17 @@ type Props = {
   compact?: boolean;
   /** Show the "Show data" table toggle (off for sparklines inside a card with totals). */
   withTable?: boolean;
+  /** What one point covers. Hour buckets show the date too (they can span days). */
+  bucket?: "minute" | "hour";
 };
 
 const timeFormat = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" });
+const dayTimeFormat = new Intl.DateTimeFormat(undefined, {
+  month: "short",
+  day: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+});
 
 function token(name: string, fallback: string): string {
   if (typeof window === "undefined") return fallback;
@@ -52,7 +60,9 @@ export function TrendChart({
   label,
   compact = false,
   withTable = true,
+  bucket = "minute",
 }: Props) {
+  const times = bucket === "hour" ? dayTimeFormat : timeFormat;
   const option = useMemo<EChartsCoreOption>(() => {
     const color = token("--chart-1", "#1d4ed8");
     const grid = token("--chart-grid", "#e7edf5");
@@ -74,7 +84,7 @@ export function TrendChart({
           const [point] = params as { value: [string, number] }[];
           if (!point) return "";
           const [start, value] = point.value;
-          return tooltipNode(format(value), unit, timeFormat.format(new Date(start)));
+          return tooltipNode(format(value), unit, times.format(new Date(start)));
         },
       },
       xAxis: {
@@ -106,7 +116,7 @@ export function TrendChart({
         },
       ],
     };
-  }, [data, unit, format, compact]);
+  }, [data, unit, format, compact, times]);
 
   return (
     <div className="flex flex-col gap-2">
@@ -122,7 +132,7 @@ export function TrendChart({
               <thead className="sticky top-0 bg-muted">
                 <tr>
                   <th scope="col" className="px-3 py-1 text-left font-semibold">
-                    Minute
+                    {bucket === "hour" ? "Hour" : "Minute"}
                   </th>
                   <th scope="col" className="px-3 py-1 text-right font-semibold">
                     {unit}
@@ -132,7 +142,7 @@ export function TrendChart({
               <tbody>
                 {data.map((d) => (
                   <tr key={d.start} className="border-t">
-                    <td className="px-3 py-1">{timeFormat.format(new Date(d.start))}</td>
+                    <td className="px-3 py-1">{times.format(new Date(d.start))}</td>
                     <td className="px-3 py-1 text-right tabular-nums text-foreground">
                       {format(d.value)}
                     </td>

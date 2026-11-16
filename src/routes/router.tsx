@@ -20,6 +20,8 @@ import { AppShell } from "@/features/shell/AppShell";
 import { SourceDetailPage } from "@/features/sources/SourceDetailPage";
 import { EditSourcePage, NewSourcePage } from "@/features/sources/SourceFormPage";
 import { SourcesPage } from "@/features/sources/SourcesPage";
+import { OperationPage } from "@/features/workload/OperationPage";
+import { validateExplorerSearch, validateWindowSearch } from "@/features/workload/search";
 import { WorkloadPage } from "@/features/workload/WorkloadPage";
 
 export type RouterContext = { queryClient: QueryClient };
@@ -115,10 +117,27 @@ const appRoute = createRoute({
   component: AppShell,
 });
 
+/** Home: the health strip and the explorer, whose filters and time range live in the URL. */
 const workloadRoute = createRoute({
   getParentRoute: () => appRoute,
   path: "/",
+  validateSearch: validateExplorerSearch,
   component: WorkloadPage,
+});
+
+const operationRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: "/operations/$operationId",
+  params: {
+    parse: ({ operationId }: { operationId: string }) => {
+      const id = Number(operationId);
+      if (!Number.isInteger(id) || id < 1) throw notFound();
+      return { operationId: id };
+    },
+    stringify: ({ operationId }: { operationId: number }) => ({ operationId: String(operationId) }),
+  },
+  validateSearch: validateWindowSearch,
+  component: OperationPage,
 });
 const sourcesRoute = createRoute({
   getParentRoute: () => appRoute,
@@ -174,6 +193,7 @@ const routeTree = rootRoute.addChildren([
   loginRoute,
   appRoute.addChildren([
     workloadRoute,
+    operationRoute,
     sourcesRoute,
     newSourceRoute,
     sourceDetailRoute,

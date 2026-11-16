@@ -115,6 +115,70 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/operations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Operations
+         * @description Operations ranked by total time, mean time or calls over a time window.
+         */
+        get: operations["listOperations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/operations/{operation_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Operation
+         * @description One operation: its statement, metrics over the window and history per minute or hour.
+         */
+        get: operations["getOperation"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/operations/{operation_id}/plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Operation Plan
+         * @description The latest generic plan for an operation, or why there isn't one.
+         */
+        get: operations["getOperationPlan"];
+        put?: never;
+        /**
+         * Capture Operation Plan
+         * @description Plan the statement again now with EXPLAIN (GENERIC_PLAN). Never executes it.
+         */
+        post: operations["captureOperationPlan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/sources": {
         parameters: {
             query?: never;
@@ -379,12 +443,203 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
+        /**
+         * HistoryPoint
+         * @description One bucket of an operation's history. The mean is None when there were no calls.
+         */
+        HistoryPoint: {
+            /** Calls */
+            calls: number;
+            /** Mean Exec Time Ms */
+            mean_exec_time_ms: number | null;
+            /** Rows */
+            rows: number;
+            /**
+             * Start
+             * Format: date-time
+             */
+            start: string;
+            /** Total Exec Time Ms */
+            total_exec_time_ms: number;
+        };
         /** LoginRequest */
         LoginRequest: {
             /** Password */
             password: string;
             /** Username */
             username: string;
+        };
+        /** OperationDetail */
+        OperationDetail: {
+            /** Bucket Seconds */
+            bucket_seconds: number;
+            /**
+             * End
+             * Format: date-time
+             */
+            end: string;
+            /** History */
+            history: components["schemas"]["HistoryPoint"][];
+            operation: components["schemas"]["OperationSummary"];
+            source: components["schemas"]["SourceOut"];
+            /**
+             * Start
+             * Format: date-time
+             */
+            start: string;
+            /** Toplevel */
+            toplevel: boolean;
+        };
+        /** OperationList */
+        OperationList: {
+            /**
+             * End
+             * Format: date-time
+             */
+            end: string;
+            /** Operations */
+            operations: components["schemas"]["OperationSummary"][];
+            /**
+             * Sort
+             * @enum {string}
+             */
+            sort: "total_time" | "mean_time" | "calls";
+            /**
+             * Start
+             * Format: date-time
+             */
+            start: string;
+            /** Total Count */
+            total_count: number;
+            /** Total Exec Time Ms */
+            total_exec_time_ms: number;
+        };
+        /**
+         * OperationPlan
+         * @description The latest generic plan for an operation, or why there isn't one.
+         *
+         *     - captured: `root` and `raw` hold the plan.
+         *     - failed: EXPLAIN was tried and `reason` says why it gave no plan.
+         *     - not_captured: plans are available but none was captured yet for this operation.
+         *     - unavailable: this source can't produce plans; `reason` and `fix` say why and what to do.
+         */
+        OperationPlan: {
+            /** Captured At */
+            captured_at?: string | null;
+            /** Checked At */
+            checked_at?: string | null;
+            /** Fix */
+            fix?: string | null;
+            /** Operation Id */
+            operation_id: number;
+            /** Plan Id */
+            plan_id?: number | null;
+            /** Raw */
+            raw?: unknown[] | null;
+            /** Reason */
+            reason?: string | null;
+            root?: components["schemas"]["PlanNode"] | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "captured" | "failed" | "not_captured" | "unavailable";
+        };
+        /**
+         * OperationSummary
+         * @description One row of the explorer: an operation (a fingerprint) and its metrics in the window.
+         */
+        OperationSummary: {
+            /** Calls */
+            calls: number;
+            engine: components["schemas"]["SourceEngine"];
+            /**
+             * First Seen At
+             * Format: date-time
+             */
+            first_seen_at: string;
+            /** Id */
+            id: number;
+            /**
+             * Last Seen At
+             * Format: date-time
+             */
+            last_seen_at: string;
+            /** Mean Exec Time Ms */
+            mean_exec_time_ms: number;
+            /** Query */
+            query: string;
+            /** Rows */
+            rows: number;
+            /** Share Of Total Time */
+            share_of_total_time: number;
+            /** Shared Blks Hit */
+            shared_blks_hit: number;
+            /** Shared Blks Read */
+            shared_blks_read: number;
+            /** Source Id */
+            source_id: number;
+            /** Source Name */
+            source_name: string;
+            /** Total Exec Time Ms */
+            total_exec_time_ms: number;
+        };
+        /**
+         * PlanNode
+         * @description One node of a PostgreSQL plan, with the planner's estimates (nothing was executed).
+         */
+        PlanNode: {
+            /** Alias */
+            alias?: string | null;
+            /**
+             * Children
+             * @default []
+             */
+            children: components["schemas"]["PlanNode"][];
+            /**
+             * Details
+             * @default {}
+             */
+            details: {
+                [key: string]: string;
+            };
+            /** Filter */
+            filter?: string | null;
+            /** Index Cond */
+            index_cond?: string | null;
+            /** Index Name */
+            index_name?: string | null;
+            /** Join Cond */
+            join_cond?: string | null;
+            /** Join Type */
+            join_type?: string | null;
+            /** Node Type */
+            node_type: string;
+            /** Parent Relationship */
+            parent_relationship?: string | null;
+            /** Path */
+            path: string;
+            /** Plan Rows */
+            plan_rows: number;
+            /** Plan Width */
+            plan_width: number;
+            /** Recheck Cond */
+            recheck_cond?: string | null;
+            /** Relation Name */
+            relation_name?: string | null;
+            /** Schema Name */
+            schema_name?: string | null;
+            /**
+             * Sort Key
+             * @default []
+             */
+            sort_key: string[];
+            /** Startup Cost */
+            startup_cost: number;
+            /** Strategy */
+            strategy?: string | null;
+            /** Total Cost */
+            total_cost: number;
         };
         /**
          * Role
@@ -719,6 +974,13 @@ export interface operations {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
+            /** @description Too many failed sign-ins from this client; retry later */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     logout: {
@@ -776,6 +1038,154 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["CollectorStatus"];
                 };
+            };
+        };
+    };
+    listOperations: {
+        parameters: {
+            query?: {
+                sort?: "total_time" | "mean_time" | "calls";
+                source_id?: number | null;
+                /** @description Keep statements containing this text */
+                q?: string | null;
+                limit?: number;
+                /** @description The last N minutes (default 60) */
+                minutes?: number | null;
+                /** @description Absolute window start (ISO 8601; UTC if no zone) */
+                start?: string | null;
+                /** @description Absolute window end (default: now) */
+                end?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OperationList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getOperation: {
+        parameters: {
+            query?: {
+                /** @description The last N minutes (default 60) */
+                minutes?: number | null;
+                /** @description Absolute window start (ISO 8601; UTC if no zone) */
+                start?: string | null;
+                /** @description Absolute window end (default: now) */
+                end?: string | null;
+            };
+            header?: never;
+            path: {
+                operation_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OperationDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getOperationPlan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                operation_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OperationPlan"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    captureOperationPlan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                operation_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OperationPlan"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description The source couldn't be reached to plan the statement */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

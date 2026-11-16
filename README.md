@@ -24,9 +24,18 @@ and the main README.
   execution time, a calls-per-minute sparkline), and the collector's running state.
 - **Collection panel** on each source: last collection, eviction warnings, and charts of calls and
   execution time per minute with a table view of the data. Charts use ECharts, loaded on demand.
+- **Workload explorer** on the home page: operations ranked by total time, mean time or calls
+  over a time range, filtered by source and statement text. Every filter and the time range live
+  in the URL (typed TanStack Router search params), so a copied link reopens the same view.
+  **Lock range** fixes a relative range to absolute times for sharing.
+- **Operation detail**: the statement, its metrics over the range (total time and share, calls,
+  mean, rows, cache hit ratio) and its history per minute or hour.
+- **PostgreSQL plan viewer**: the generic plan's node tree with estimated cost and rows,
+  conditions and sort keys, sequential scans highlighted, the raw EXPLAIN JSON, and a clear
+  reason when there is no plan. The admin can re-capture a plan.
 - **Typed API client** generated from the backend's `openapi.json`.
 
-The workload explorer, Findings and Settings are placeholders that say which phase delivers them.
+Findings and Settings are placeholders that say which phase delivers them.
 
 ## Quick start
 
@@ -40,6 +49,10 @@ npm run dev          # http://localhost:5173
 
 Local demo credentials (from the backend's compose file): `admin` / `admin-demo-password`, or use
 **Try the demo**.
+
+The end-to-end tests run against the backend's real stack with its demo workload. The explorer
+journeys register the demo PostgreSQL as a source if needed and wait (up to four minutes) for the
+collector to observe the planted problem P1.
 
 Vite proxies `/api` to the backend (`QP_BACKEND_URL`, default `http://localhost:8000`), so the
 browser talks to a single origin and the session cookie works without CORS.

@@ -35,6 +35,13 @@ export const backend = {
   /** Per-source calls/time per minute, as the collector would have recorded them. */
   trends: new Map<number, Schemas["TrendPoint"][]>(),
   collectorRunning: true,
+  /** Operations as the collector would have aggregated them, with optional detail and plan. */
+  operations: [] as Schemas["OperationSummary"][],
+  history: new Map<number, Schemas["HistoryPoint"][]>(),
+  plans: new Map<number, Schemas["OperationPlan"]>(),
+  /** The query string of every GET /api/operations, to check what the explorer asked for. */
+  operationRequests: [] as URLSearchParams[],
+  captures: 0,
   nextId: 1,
   reset() {
     this.session = null;
@@ -45,6 +52,11 @@ export const backend = {
     this.updatesWithoutTest = 0;
     this.trends = new Map();
     this.collectorRunning = true;
+    this.operations = [];
+    this.history = new Map();
+    this.plans = new Map();
+    this.operationRequests = [];
+    this.captures = 0;
     this.nextId = 1;
   },
 };
@@ -405,6 +417,136 @@ handlers.push(
             message: "The collector has never run.",
           },
     );
+  }),
+);
+
+// --- workload explorer (Phase 4) -------------------------------------------------------------
+
+export function makeOperation(
+  overrides: Partial<Schemas["OperationSummary"]> = {},
+): Schemas["OperationSummary"] {
+  const now = new Date().toISOString();
+  const calls = overrides.calls ?? 100;
+  const total = overrides.total_exec_time_ms ?? 1000;
+  return {
+    id: overrides.id ?? backend.nextId++,
+    source_id: 1,
+    source_name: "Orders DB",
+    engine: "postgres",
+    query: "SELECT id FROM orders WHERE customer_id = $1",
+    calls,
+    total_exec_time_ms: total,
+    mean_exec_time_ms: calls ? total / calls : 0,
+    rows: calls,
+    shared_blks_hit: 90,
+    shared_blks_read: 10,
+    share_of_total_time: 0.5,
+    first_seen_at: now,
+    last_seen_at: now,
+    ...overrides,
+  };
+}
+
+/** The demo's P1 plan: a sequential scan on orders, filtered by customer_id. */
+export const SEQ_SCAN_PLAN: Schemas["PlanNode"] = {
+  path: "0",
+  node_type: "Seq Scan",
+  relation_name: "orders",
+  alias: "orders",
+  startup_cost: 0,
+  total_cost: 4443,
+  plan_rows: 10,
+  plan_width: 21,
+  filter: "(customer_id = $1)",
+  sort_key: [],
+  details: {},
+  children: [],
+};
+
+export function capturedPlan(operationId: number, root = SEQ_SCAN_PLAN): Schemas["OperationPlan"] {
+  const now = new Date().toISOString();
+  return {
+    operation_id: operationId,
+    status: "captured",
+    plan_id: 7,
+    captured_at: now,
+    checked_at: now,
+    root,
+    raw: [{ Plan: { "Node Type": root.node_type } }],
+  };
+}
+
+const ORDERS: Record<string, keyof Schemas["OperationSummary"]> = {
+  total_time: "total_exec_time_ms",
+  mean_time: "mean_exec_time_ms",
+  calls: "calls",
+};
+
+handlers.push(
+  http.get("/api/operations", ({ request }) => {
+    const denied = guard(false);
+    if (denied) return denied;
+    const query = new URL(request.url).searchParams;
+    backend.operationRequests.push(query);
+    const sort = (query.get("sort") ?? "total_time") as Schemas["OperationList"]["sort"];
+    const key = ORDERS[sort] ?? "total_exec_time_ms";
+    const source = query.get("source_id");
+    const text = query.get("q")?.toLowerCase();
+    const matching = backend.operations
+      .filter((op) => !source || op.source_id === Number(source))
+      .filter((op) => !text || op.query.toLowerCase().includes(text))
+      .sort((a, b) => Number(b[key]) - Number(a[key]));
+    const end = query.get("end") ?? new Date().toISOString();
+    return HttpResponse.json<Schemas["OperationList"]>({
+      start: query.get("start") ?? new Date(Date.now() - 3_600_000).toISOString(),
+      end,
+      sort,
+      total_count: matching.length,
+      total_exec_time_ms: backend.operations.reduce((sum, op) => sum + op.total_exec_time_ms, 0),
+      operations: matching.slice(0, Number(query.get("limit") ?? 50)),
+    });
+  }),
+
+  http.get("/api/operations/:id", ({ params }) => {
+    const denied = guard(false);
+    if (denied) return denied;
+    const op = backend.operations.find((o) => o.id === Number(params.id));
+    if (!op) return HttpResponse.json({ detail: "Operation not found" }, { status: 404 });
+    const source =
+      backend.sources.find((s) => s.id === op.source_id) ?? makeSource({ id: op.source_id });
+    return HttpResponse.json<Schemas["OperationDetail"]>({
+      operation: op,
+      source: summary(source),
+      toplevel: true,
+      start: new Date(Date.now() - 3_600_000).toISOString(),
+      end: new Date().toISOString(),
+      bucket_seconds: 60,
+      history: backend.history.get(op.id) ?? [],
+    });
+  }),
+
+  http.get("/api/operations/:id/plan", ({ params }) => {
+    const denied = guard(false);
+    if (denied) return denied;
+    const id = Number(params.id);
+    return HttpResponse.json<Schemas["OperationPlan"]>(
+      backend.plans.get(id) ?? {
+        operation_id: id,
+        status: "not_captured",
+        reason:
+          "No plan captured yet. The collector plans the busiest operations of each source every few minutes.",
+      },
+    );
+  }),
+
+  http.post("/api/operations/:id/plan", ({ params }) => {
+    const denied = guard(true);
+    if (denied) return denied;
+    const id = Number(params.id);
+    backend.captures += 1;
+    const plan = capturedPlan(id);
+    backend.plans.set(id, plan);
+    return HttpResponse.json<Schemas["OperationPlan"]>(plan);
   }),
 );
 

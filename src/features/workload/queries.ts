@@ -1,4 +1,4 @@
-import { queryOptions } from "@tanstack/react-query";
+import { queryOptions, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, type Schemas, unwrap } from "@/api/client";
 
 export type SourceHealth = Schemas["SourceHealth"];
@@ -31,3 +31,63 @@ export const collectorStatusQuery = queryOptions({
   queryFn: () => unwrap(api.GET("/api/collector/status")),
   refetchInterval: REFRESH_MS,
 });
+
+// --- workload explorer (Phase 4) -------------------------------------------------------------
+
+export type OperationSummary = Schemas["OperationSummary"];
+export type OperationDetail = Schemas["OperationDetail"];
+export type OperationPlan = Schemas["OperationPlan"];
+export type PlanNode = Schemas["PlanNode"];
+
+type WindowParams = { minutes?: number; start?: string; end?: string };
+type ListParams = WindowParams & {
+  sort?: Schemas["OperationList"]["sort"];
+  source_id?: number;
+  q?: string;
+};
+
+/** Ranked operations. Relative windows refresh with the collector; absolute ones are fixed. */
+export const operationsQuery = (params: ListParams) =>
+  queryOptions({
+    queryKey: ["operations", params] as const,
+    queryFn: () => unwrap(api.GET("/api/operations", { params: { query: params } })),
+    refetchInterval: params.start ? false : REFRESH_MS,
+    placeholderData: (previous) => previous,
+  });
+
+export const operationQuery = (id: number, params: WindowParams) =>
+  queryOptions({
+    queryKey: ["operations", id, params] as const,
+    queryFn: () =>
+      unwrap(
+        api.GET("/api/operations/{operation_id}", {
+          params: { path: { operation_id: id }, query: params },
+        }),
+      ),
+    refetchInterval: params.start ? false : REFRESH_MS,
+  });
+
+export const operationPlanQuery = (id: number) =>
+  queryOptions({
+    queryKey: ["operations", id, "plan"] as const,
+    queryFn: () =>
+      unwrap(
+        api.GET("/api/operations/{operation_id}/plan", {
+          params: { path: { operation_id: id } },
+        }),
+      ),
+  });
+
+/** Admin only: plan the statement again now (EXPLAIN GENERIC_PLAN; never executes it). */
+export function useCapturePlan(id: number) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      unwrap(
+        api.POST("/api/operations/{operation_id}/plan", {
+          params: { path: { operation_id: id } },
+        }),
+      ),
+    onSuccess: (plan) => queryClient.setQueryData(operationPlanQuery(id).queryKey, plan),
+  });
+}
