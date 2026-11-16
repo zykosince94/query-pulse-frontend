@@ -14,7 +14,10 @@ const MINUTES = 60;
 
 function SourceCard({ health }: { health: SourceHealth }) {
   const { source } = health;
-  const collects = source.engine === "postgres" && source.enabled;
+  const collects = source.enabled;
+  const mongo = source.engine === "mongodb";
+  const profilerOff =
+    mongo && (source.capability_gaps ?? []).some((gap) => gap.feature === "profiler");
   return (
     <Card className="flex flex-col gap-3 p-4">
       <div className="flex items-start justify-between gap-2">
@@ -43,7 +46,9 @@ function SourceCard({ health }: { health: SourceHealth }) {
         <>
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <div className="text-xs text-muted-foreground">Calls, last hour</div>
+              <div className="text-xs text-muted-foreground">
+                {mongo ? "Profiled operations, last hour" : "Calls, last hour"}
+              </div>
               <div className="text-lg font-semibold tabular-nums">{count(health.calls)}</div>
             </div>
             <div>
@@ -62,16 +67,16 @@ function SourceCard({ health }: { health: SourceHealth }) {
             label={`${source.name}: calls per minute over the last hour, ${count(health.calls)} in total`}
           />
           <p className="text-xs text-muted-foreground">
-            {source.last_collected_at
-              ? `Collected ${timeAgo(source.last_collected_at)}`
-              : "Waiting for the first collection"}
+            {profilerOff
+              ? "Profiling is off, so no operations are collected. See the source for the fix."
+              : source.last_collected_at
+                ? `Collected ${timeAgo(source.last_collected_at)}`
+                : "Waiting for the first collection"}
           </p>
         </>
       ) : (
         <p className="text-sm text-muted-foreground">
-          {source.engine === "mongodb"
-            ? "MongoDB workload collection arrives in Phase 6."
-            : "Collection is off for this source (disabled)."}
+          Collection is off for this source (disabled).
         </p>
       )}
     </Card>

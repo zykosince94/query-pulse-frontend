@@ -17,6 +17,15 @@ import { DEFAULT_RANGE, describeWindow, RANGES, type RangeKey, windowParams } fr
 
 const route = getRouteApi("/app/operations/$operationId");
 
+/** A MongoDB shape (compact JSON) indented for reading; left as is if it isn't JSON. */
+function prettyShape(shape: string): string {
+  try {
+    return JSON.stringify(JSON.parse(shape), null, 2);
+  } catch {
+    return shape;
+  }
+}
+
 function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
     <div className="flex flex-col gap-0.5">
@@ -70,9 +79,12 @@ export function OperationPage() {
   }
 
   const { operation: op, source, history } = detail.data;
+  const mongo = source.engine === "mongodb";
   const bucket = detail.data.bucket_seconds >= 3600 ? "hour" : "minute";
   const per = bucket === "hour" ? "hour" : "minute";
   const blocks = op.shared_blks_hit + op.shared_blks_read;
+  const examined = Math.max(op.keys_examined ?? 0, op.docs_examined ?? 0);
+  const calls = mongo ? "Operations" : "Calls";
   const window = describeWindow(search);
 
   return (
@@ -80,7 +92,7 @@ export function OperationPage() {
       {back}
       <div className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-2xl font-semibold">Operation</h1>
+          <h1 className="text-2xl font-semibold">{mongo ? "Query shape" : "Operation"}</h1>
           <EngineBadge engine={source.engine} />
           <Link
             to="/sources/$sourceId"
@@ -91,11 +103,13 @@ export function OperationPage() {
           </Link>
         </div>
         <pre className="overflow-x-auto rounded-md border bg-card p-3 font-mono text-sm whitespace-pre-wrap break-words">
-          {op.query}
+          {mongo ? prettyShape(op.query) : op.query}
         </pre>
         <p className="text-xs text-muted-foreground">
+          {mongo &&
+            `${op.command ?? "Operation"} on ${op.namespace ?? "a collection"} · every value shows as ?, since Query Pulse stores the shape, not the values · `}
           First seen {dateTime(op.first_seen_at)} · last seen {dateTime(op.last_seen_at)}
-          {!detail.data.toplevel && " · runs nested inside a function or procedure"}
+          {!mongo && !detail.data.toplevel && " · runs nested inside a function or procedure"}
         </p>
       </div>
 
@@ -133,18 +147,38 @@ export function OperationPage() {
               value={duration(op.total_exec_time_ms)}
               hint={`${Math.round(op.share_of_total_time * 100)}% of the source's total`}
             />
-            <Stat label="Calls" value={count(op.calls)} />
-            <Stat label="Mean time" value={duration(op.mean_exec_time_ms)} />
             <Stat
-              label="Rows"
+              label={calls}
+              value={count(op.calls)}
+              hint={mongo ? "recorded by the profiler" : undefined}
+            />
+            <Stat
+              label="Mean time"
+              value={duration(op.mean_exec_time_ms)}
+              hint={mongo ? "the profiler times operations in whole milliseconds" : undefined}
+            />
+            <Stat
+              label={mongo ? "Documents returned" : "Rows"}
               value={count(op.rows)}
-              hint={op.calls ? `${count(op.rows / op.calls)} per call` : undefined}
+              hint={
+                op.calls
+                  ? `${count(op.rows / op.calls)} per ${mongo ? "operation" : "call"}`
+                  : undefined
+              }
             />
-            <Stat
-              label="Cache hit ratio"
-              value={blocks ? `${((op.shared_blks_hit / blocks) * 100).toFixed(1)}%` : "–"}
-              hint={blocks ? `${count(op.shared_blks_read)} blocks read from disk` : undefined}
-            />
+            {mongo ? (
+              <Stat
+                label="Examined per returned"
+                value={op.rows ? count(examined / op.rows) : examined ? "∞" : "–"}
+                hint={`${count(op.keys_examined ?? 0)} keys, ${count(op.docs_examined ?? 0)} documents examined`}
+              />
+            ) : (
+              <Stat
+                label="Cache hit ratio"
+                value={blocks ? `${((op.shared_blks_hit / blocks) * 100).toFixed(1)}%` : "–"}
+                hint={blocks ? `${count(op.shared_blks_read)} blocks read from disk` : undefined}
+              />
+            )}
           </div>
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             <div className="flex flex-col gap-2">
@@ -158,13 +192,15 @@ export function OperationPage() {
               />
             </div>
             <div className="flex flex-col gap-2">
-              <h3 className="text-sm font-medium">Calls per {per}</h3>
+              <h3 className="text-sm font-medium">
+                {calls} per {per}
+              </h3>
               <TrendChart
                 bucket={bucket}
                 data={history.map((p) => ({ start: p.start, value: p.calls }))}
-                unit="calls"
+                unit={mongo ? "operations" : "calls"}
                 format={count}
-                label={`Calls per ${per}, ${window.toLowerCase()}: ${count(op.calls)} in total`}
+                label={`${calls} per ${per}, ${window.toLowerCase()}: ${count(op.calls)} in total`}
               />
             </div>
           </div>
@@ -182,7 +218,12 @@ export function OperationPage() {
         </section>
       )}
 
-      <PlanViewer operationId={operationId} citedPlanId={search.plan} highlightPath={search.node} />
+      <PlanViewer
+        operationId={operationId}
+        engine={source.engine}
+        citedPlanId={search.plan}
+        highlightPath={search.node}
+      />
     </div>
   );
 }

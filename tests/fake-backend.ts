@@ -46,6 +46,8 @@ export const backend = {
   /** Stored plans by id (what GET /api/plans/{id} returns). */
   storedPlans: new Map<number, Schemas["OperationPlan"]>(),
   findingUpdates: [] as { id: number; status: string }[],
+  /** MongoDB sources' latest serverStatus sample (Phase 6). */
+  serverMetrics: new Map<number, Schemas["ServerMetrics"]>(),
   nextId: 1,
   reset() {
     this.session = null;
@@ -64,6 +66,7 @@ export const backend = {
     this.findings = [];
     this.storedPlans = new Map();
     this.findingUpdates = [];
+    this.serverMetrics = new Map();
     this.nextId = 1;
   },
 };
@@ -114,6 +117,7 @@ export function capabilitiesFor(host: string): Capability[] {
 export function makeSource(overrides: Partial<SourceDetail> = {}): SourceDetail {
   const now = new Date().toISOString();
   const id = overrides.id ?? backend.nextId++;
+  const capabilities = overrides.capabilities ?? capabilitiesFor("ok.example");
   return {
     id,
     name: "Orders DB",
@@ -134,9 +138,59 @@ export function makeSource(overrides: Partial<SourceDetail> = {}): SourceDetail 
     updated_at: now,
     last_collected_at: null,
     warnings: [],
-    capabilities: capabilitiesFor("ok.example"),
+    capabilities,
+    // Like the backend: the unavailable capabilities, for lists (e.g. profiling off).
+    capability_gaps: capabilities.filter((c) => !c.available),
     ...overrides,
   };
+}
+
+/** The demo MongoDB's checklist, with the profiler on or off. */
+export function mongoCapabilities(profiler = true): Capability[] {
+  return [
+    {
+      feature: "server_status",
+      label: "Server metrics (serverStatus)",
+      available: true,
+      reason: null,
+      fix: null,
+    },
+    {
+      feature: "explain",
+      label: "Query plans (explain)",
+      available: true,
+      reason: null,
+      fix: null,
+    },
+    {
+      feature: "profiler",
+      label: "Slow operations (profiler)",
+      available: profiler,
+      reason: profiler ? null : "Profiling is off on database 'shop'.",
+      fix: profiler ? null : PROFILER_FIX,
+    },
+  ];
+}
+
+export const PROFILER_FIX =
+  'Connected to "shop": db.setProfilingLevel(1, { slowms: 100 }). Profiling adds some overhead; Query Pulse only reads it and never turns it on.';
+
+export function makeMongoSource(
+  overrides: Partial<SourceDetail> = {},
+  profiler = true,
+): SourceDetail {
+  return makeSource({
+    name: "Shop MongoDB",
+    engine: "mongodb",
+    host: "mongo.example",
+    port: 27017,
+    username: "",
+    has_password: false,
+    server_version: "7.0.14",
+    status: profiler ? "healthy" : "degraded",
+    capabilities: mongoCapabilities(profiler),
+    ...overrides,
+  });
 }
 
 const unauthorized = () => HttpResponse.json({ detail: "Not signed in" }, { status: 401 });
@@ -470,16 +524,123 @@ export const SEQ_SCAN_PLAN: Schemas["PlanNode"] = {
   children: [],
 };
 
+/** A plan state with the fields every response carries (PostgreSQL unless said otherwise). */
+export function planOf(
+  plan: Partial<Schemas["OperationPlan"]> &
+    Pick<Schemas["OperationPlan"], "operation_id" | "status">,
+): Schemas["OperationPlan"] {
+  return { engine: "postgres", rejected_plans: 0, pipeline_stages: [], ...plan };
+}
+
 export function capturedPlan(operationId: number, root = SEQ_SCAN_PLAN): Schemas["OperationPlan"] {
   const now = new Date().toISOString();
   return {
     operation_id: operationId,
+    engine: "postgres",
+    rejected_plans: 0,
+    pipeline_stages: [],
     status: "captured",
     plan_id: 7,
     captured_at: now,
     checked_at: now,
     root,
     raw: [{ Plan: { "Node Type": root.node_type } }],
+  };
+}
+
+// --- MongoDB (Phase 6) ----------------------------------------------------------------------
+
+export const M1_SHAPE = '{"find": "orders", "filter": {"customerId": "?"}}';
+
+export function makeMongoOperation(
+  overrides: Partial<Schemas["OperationSummary"]> = {},
+): Schemas["OperationSummary"] {
+  return makeOperation({
+    source_name: "Shop MongoDB",
+    engine: "mongodb",
+    query: M1_SHAPE,
+    namespace: "shop.orders",
+    command: "find",
+    shared_blks_hit: 0,
+    shared_blks_read: 0,
+    rows: 250,
+    docs_examined: 5_000_000,
+    keys_examined: 0,
+    ...overrides,
+  });
+}
+
+/** M1's winning plan: a collection scan with the (redacted) customerId filter. */
+export const COLLSCAN_STAGE: Schemas["MongoPlanStage"] = {
+  path: "0",
+  stage: "COLLSCAN",
+  direction: "forward",
+  filter: '{"customerId": {"$eq": "?"}}',
+  index_bounds: {},
+  full_index_scan: false,
+  details: {},
+  children: [],
+};
+
+/** M3's: an index scan whose bounds cover the whole sku index, under a FETCH. */
+export const REGEX_STAGES: Schemas["MongoPlanStage"] = {
+  path: "0",
+  stage: "FETCH",
+  index_bounds: {},
+  full_index_scan: false,
+  details: {},
+  children: [
+    {
+      path: "0.0",
+      stage: "IXSCAN",
+      index_name: "sku_1",
+      key_pattern: '{"sku": 1}',
+      direction: "forward",
+      filter: '{"sku": {"$regex": "?"}}',
+      index_bounds: { sku: ['["", {})', "?"] },
+      full_index_scan: true,
+      details: {},
+      children: [],
+    },
+  ],
+};
+
+export function capturedMongoPlan(
+  operationId: number,
+  stageRoot = COLLSCAN_STAGE,
+): Schemas["OperationPlan"] {
+  const now = new Date().toISOString();
+  return {
+    operation_id: operationId,
+    engine: "mongodb",
+    status: "captured",
+    plan_id: 21,
+    captured_at: now,
+    checked_at: now,
+    stage_root: stageRoot,
+    rejected_plans: 1,
+    pipeline_stages: [],
+    raw: [{ winningPlan: { stage: stageRoot.stage } }],
+  };
+}
+
+export function makeServerMetrics(
+  sourceId: number,
+  overrides: Partial<Schemas["ServerMetrics"]> = {},
+): Schemas["ServerMetrics"] {
+  return {
+    source_id: sourceId,
+    captured_at: new Date().toISOString(),
+    uptime_seconds: 93_784,
+    connections_current: 12,
+    connections_available: 838,
+    cache_bytes: 80 * 1024 * 1024,
+    cache_max_bytes: 7_400 * 1024 * 1024,
+    repl_state: "primary",
+    opcounters: { query: 690, insert: 80_000, update: 0, delete: 0, getmore: 3, command: 50_276 },
+    rates_per_second: { query: 10.1, insert: 0, update: 0, delete: 0, getmore: 0.1, command: 4.1 },
+    rate_seconds: 15,
+    ...overrides,
   };
 }
 
@@ -536,13 +697,18 @@ handlers.push(
     const denied = guard(false);
     if (denied) return denied;
     const id = Number(params.id);
+    const engine = backend.operations.find((o) => o.id === id)?.engine ?? "postgres";
     return HttpResponse.json<Schemas["OperationPlan"]>(
-      backend.plans.get(id) ?? {
-        operation_id: id,
-        status: "not_captured",
-        reason:
-          "No plan captured yet. The collector plans the busiest operations of each source every few minutes.",
-      },
+      backend.plans.get(id) ??
+        planOf({
+          operation_id: id,
+          engine,
+          status: "not_captured",
+          reason:
+            engine === "mongodb"
+              ? "No plan captured yet. The collector explains the busiest shapes of each source from an operation the profiler recorded."
+              : "No plan captured yet. The collector plans the busiest operations of each source every few minutes.",
+        }),
     );
   }),
 
@@ -565,6 +731,7 @@ export function makeFinding(overrides: Partial<Schemas["FindingOut"]> = {}): Sch
     id: overrides.id ?? backend.nextId++,
     source_id: 1,
     source_name: "Orders DB",
+    engine: "postgres",
     rule_id: "PG-SEQSCAN-HOT",
     rule_title: "Sequential scan in a hot query",
     target_kind: "operation",
@@ -684,6 +851,18 @@ handlers.push(
     return plan
       ? HttpResponse.json<Schemas["OperationPlan"]>(plan)
       : HttpResponse.json({ detail: "Plan not found" }, { status: 404 });
+  }),
+);
+
+handlers.push(
+  http.get("/api/sources/:id/server", ({ params }) => {
+    const denied = guard(false);
+    if (denied) return denied;
+    const id = Number(params.id);
+    if (!backend.sources.some((s) => s.id === id)) return notFoundSource();
+    return HttpResponse.json<Schemas["ServerMetrics"] | null>(
+      backend.serverMetrics.get(id) ?? null,
+    );
   }),
 );
 

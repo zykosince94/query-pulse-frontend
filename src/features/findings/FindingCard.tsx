@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useCanWrite } from "@/features/auth/queries";
-import { CopyButton } from "@/features/sources/components";
+import { CopyButton, EngineBadge } from "@/features/sources/components";
 import { dateTime, timeAgo } from "@/lib/format";
 import { count, duration } from "@/lib/numbers";
 import {
@@ -137,6 +137,7 @@ export function FindingCard({
   showTarget?: boolean;
 }) {
   const strong = finding.evidence_strength === "plan";
+  const mongo = finding.engine === "mongodb";
   return (
     <Card className="flex flex-col gap-4 p-4" aria-labelledby={`finding-${finding.id}`}>
       <div className="flex flex-col gap-2">
@@ -149,7 +150,7 @@ export function FindingCard({
             variant={strong ? "success" : "outline"}
             title={
               strong
-                ? "Read from a captured query plan: what PostgreSQL actually does"
+                ? `Read from a captured query plan: what ${mongo ? "MongoDB" : "PostgreSQL"} will do`
                 : "Inferred from counters alone; check before acting"
             }
           >
@@ -178,7 +179,10 @@ export function FindingCard({
             ) : (
               <span className="font-mono text-xs">{finding.relation}</span>
             )}
-            <span className="block text-xs">{finding.source_name}</span>
+            <span className="mt-1 flex flex-wrap items-center gap-1.5 text-xs">
+              <EngineBadge engine={finding.engine} />
+              {finding.source_name}
+            </span>
           </div>
         )}
         <p className="text-sm">{finding.summary}</p>
@@ -203,7 +207,10 @@ export function FindingCard({
             <code className="min-w-0 flex-1 whitespace-pre-wrap break-words font-mono text-xs">
               {finding.action_sql}
             </code>
-            <CopyButton text={finding.action_sql} label="Copy SQL" />
+            <CopyButton
+              text={finding.action_sql}
+              label={mongo ? "Copy the mongosh command" : "Copy SQL"}
+            />
           </div>
         )}
         <p className="flex items-center gap-1.5 text-xs text-muted-foreground">

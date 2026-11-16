@@ -1,6 +1,6 @@
 import { screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { ADMIN_USER, backend, makeSource, makeTrend } from "./fake-backend";
+import { ADMIN_USER, backend, makeMongoSource, makeSource, makeTrend } from "./fake-backend";
 import { renderApp } from "./render-app";
 
 describe("health strip (home)", () => {
@@ -35,12 +35,18 @@ describe("health strip (home)", () => {
     expect(await screen.findByText("Incomplete")).toBeInTheDocument();
   });
 
-  it("explains MongoDB sources aren't collected yet", async () => {
+  it("shows MongoDB sources' profiled operations, or why there are none", async () => {
     backend.session = ADMIN_USER;
-    backend.sources = [makeSource({ id: 2, name: "Events", engine: "mongodb", port: 27017 })];
+    backend.sources = [
+      makeMongoSource({ id: 2, name: "Events" }),
+      makeMongoSource({ id: 3, name: "Archive" }, false),
+    ];
     renderApp("/");
+    expect(await screen.findAllByText("Profiled operations, last hour")).toHaveLength(2);
     expect(
-      await screen.findByText("MongoDB workload collection arrives in Phase 6."),
+      screen.getByText(
+        "Profiling is off, so no operations are collected. See the source for the fix.",
+      ),
     ).toBeInTheDocument();
   });
 

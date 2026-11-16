@@ -10,6 +10,7 @@ import { planQuery } from "@/features/findings/queries";
 import { dateTime, timeAgo } from "@/lib/format";
 import { count } from "@/lib/numbers";
 import { cn } from "@/lib/utils";
+import { MongoPlanBody } from "./MongoPlanViewer";
 import { type OperationPlan, operationPlanQuery, type PlanNode, useCapturePlan } from "./queries";
 
 const cost = new Intl.NumberFormat(undefined, {
@@ -165,6 +166,7 @@ function PlanBody({
   highlightPath?: string | undefined;
   cited?: boolean;
 }) {
+  const mongo = plan.engine === "mongodb";
   if (plan.status === "unavailable") {
     return (
       <Alert>
@@ -178,25 +180,33 @@ function PlanBody({
       </Alert>
     );
   }
+  // MongoDB plans are captured by the collector from a profiled command it holds in memory,
+  // so there's no "capture now" for them.
   if (plan.status === "not_captured") {
     return (
       <div className="flex flex-col gap-3">
         <p className="text-sm text-muted-foreground">{plan.reason}</p>
-        <CaptureButton operationId={operationId} label="Capture plan now" />
+        {!mongo && <CaptureButton operationId={operationId} label="Capture plan now" />}
       </div>
     );
   }
-  if (plan.status === "failed" || !plan.root) {
+  if (plan.status === "failed" || (mongo ? !plan.stage_root : !plan.root)) {
     return (
       <div className="flex flex-col gap-3">
         <Alert>
-          <p className="font-medium">PostgreSQL couldn't plan this statement.</p>
+          <p className="font-medium">
+            {mongo
+              ? "MongoDB couldn't explain this operation."
+              : "PostgreSQL couldn't plan this statement."}
+          </p>
           {plan.reason && <p className="mt-1">{plan.reason}</p>}
         </Alert>
-        <CaptureButton operationId={operationId} label="Try again" />
+        {!mongo && <CaptureButton operationId={operationId} label="Try again" />}
       </div>
     );
   }
+  if (mongo) return <MongoPlanBody plan={plan} highlightPath={highlightPath} />;
+  if (!plan.root) return null;
   return (
     <div className="flex flex-col gap-4">
       <ul aria-label="Plan nodes" className="flex flex-col gap-2">
@@ -220,17 +230,26 @@ function PlanBody({
   );
 }
 
+const DESCRIPTION = {
+  postgres:
+    "The generic plan from EXPLAIN (GENERIC_PLAN): the planner's estimates for any parameter values. The statement is never executed to get it.",
+  mongodb:
+    "The winning plan from explain at queryPlanner verbosity: the stages MongoDB chose for this shape. Nothing is executed to get it.",
+};
+
 /**
- * The PostgreSQL plan viewer: the generic plan's node tree with estimated cost and rows.
- * With `citedPlanId` it shows that exact stored plan (the one a finding cites, which may be
- * older than the latest) and outlines the cited node.
+ * The plan viewer: a PostgreSQL generic plan's node tree with estimated cost and rows, or a
+ * MongoDB winning plan's stages. With `citedPlanId` it shows that exact stored plan (the one
+ * a finding cites, which may be older than the latest) and outlines the cited node or stage.
  */
 export function PlanViewer({
   operationId,
+  engine = "postgres",
   citedPlanId,
   highlightPath,
 }: {
   operationId: number;
+  engine?: "postgres" | "mongodb";
   citedPlanId?: number | undefined;
   highlightPath?: string | undefined;
 }) {
@@ -241,10 +260,7 @@ export function PlanViewer({
     <Card id="plan">
       <CardHeader>
         <CardTitle className="text-base">Query plan</CardTitle>
-        <CardDescription>
-          The generic plan from EXPLAIN (GENERIC_PLAN): the planner's estimates for any parameter
-          values. The statement is never executed to get it.
-        </CardDescription>
+        <CardDescription>{DESCRIPTION[engine]}</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         {citedPlanId && (

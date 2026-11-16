@@ -8,8 +8,10 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import { EngineBadge } from "@/features/sources/components";
 import { sourcesQuery } from "@/features/sources/queries";
 import { count, duration } from "@/lib/numbers";
+import { ProfilerGaps, profilerGaps } from "./ProfilerGaps";
 import { type OperationSummary, operationsQuery } from "./queries";
 import {
   DEFAULT_RANGE,
@@ -27,8 +29,11 @@ import {
 const route = getRouteApi("/app/");
 const LIMIT = 50;
 
-/** The statement on one line, collapsing whitespace (pg_stat_statements keeps newlines). */
-function oneLine(query: string): string {
+/**
+ * The operation on one line: a PostgreSQL statement (pg_stat_statements keeps newlines) or a
+ * MongoDB query shape (compact JSON, values shown as "?").
+ */
+export function oneLine(query: string): string {
   return query.replace(/\s+/g, " ").trim();
 }
 
@@ -69,7 +74,11 @@ function OperationRow({
         >
           {oneLine(op.query)}
         </Link>
-        <div className="mt-1 text-xs text-muted-foreground">{op.source_name}</div>
+        <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+          <EngineBadge engine={op.engine} />
+          <span>{op.source_name}</span>
+          {op.namespace && <span className="font-mono">{op.namespace}</span>}
+        </div>
       </td>
       <td className="px-3 py-2 text-right font-medium tabular-nums">
         {duration(op.total_exec_time_ms)}
@@ -214,7 +223,7 @@ export function Explorer() {
           </Select>
         </div>
         <form className="flex flex-col gap-1.5" onSubmit={onSearch}>
-          <Label htmlFor="explorer-q">Statement contains</Label>
+          <Label htmlFor="explorer-q">Statement or shape contains</Label>
           <div className="flex gap-2">
             <Input
               id="explorer-q"
@@ -230,6 +239,8 @@ export function Explorer() {
         </form>
       </Card>
 
+      <ProfilerGaps sources={sources.data} sourceId={search.source} />
+
       {operations.isPending ? (
         <p className="text-sm text-muted-foreground" role="status">
           Loading operations…
@@ -238,9 +249,11 @@ export function Explorer() {
         <Alert variant="destructive">Couldn't load operations: {operations.error.message}</Alert>
       ) : data && data.operations.length === 0 ? (
         <Card className="p-6 text-sm text-muted-foreground">
-          {search.q || search.source
-            ? "No operations match these filters in this time range."
-            : "No operations were collected in this time range. The collector records statement statistics every minute (15 s in the demo) once a PostgreSQL source is added."}
+          {search.source && !search.q && profilerGaps(sources.data, search.source).length > 0
+            ? "Nothing to rank from this source until its profiler is on (see above)."
+            : search.q || search.source
+              ? "No operations match these filters in this time range."
+              : "No operations were collected in this time range. Once a source is added, the collector records PostgreSQL statement statistics and MongoDB profiled operations every minute (15 s in the demo)."}
         </Card>
       ) : data ? (
         <Card className="overflow-hidden">
@@ -256,7 +269,7 @@ export function Explorer() {
                     #
                   </th>
                   <th scope="col" className="px-3 py-2 text-left font-semibold">
-                    Statement
+                    Operation
                   </th>
                   {(
                     [

@@ -63,16 +63,21 @@ test("a copied explorer URL reopens the same filters and time range (QP-AC-16)",
 
   await page.getByLabel("Time range").selectOption("15m");
   await page.getByLabel("Rank by").selectOption("calls");
-  await page.getByLabel("Statement contains").fill("orders");
+  await page.getByLabel("Statement or shape contains").fill("orders");
   await page.getByRole("button", { name: "Filter" }).click();
   await page.getByRole("button", { name: "Lock range" }).click();
   await expect(page).toHaveURL(/from=/);
 
   const url = page.url();
   const range = await page.getByLabel("Time range").locator("option:checked").textContent();
-  const statements = await page.getByRole("table").getByRole("link").allTextContents();
-  expect(statements.length).toBeGreaterThan(0);
-  expect(statements.every((s) => s.toLowerCase().includes("orders"))).toBe(true);
+  // The list keeps showing the previous results while the filtered ones load: wait for them.
+  const links = page.getByRole("table").getByRole("link");
+  let statements: string[] = [];
+  await expect(async () => {
+    statements = await links.allTextContents();
+    expect(statements.length).toBeGreaterThan(0);
+    expect(statements.every((s) => s.toLowerCase().includes("orders"))).toBe(true);
+  }).toPass({ timeout: 15_000 });
 
   // Open the copied link in a fresh browser context (a different person, signed in).
   const context = await browser.newContext();
@@ -80,7 +85,7 @@ test("a copied explorer URL reopens the same filters and time range (QP-AC-16)",
   await signIn(other);
   await other.goto(url);
   await expect(other.getByLabel("Rank by")).toHaveValue("calls");
-  await expect(other.getByLabel("Statement contains")).toHaveValue("orders");
+  await expect(other.getByLabel("Statement or shape contains")).toHaveValue("orders");
   await expect(other.getByLabel("Time range")).toHaveValue("custom");
   await expect(other.getByLabel("Time range").locator("option:checked")).toHaveText(range ?? "");
   // A locked range is fixed in time, so the same link shows the same operations.
@@ -101,9 +106,12 @@ test("journey: home → P1 → plan viewer shows the sequential scan (QP-AC-17)"
   await expect(page.locator("pre").first()).toHaveText(P1);
 
   const tree = page.getByRole("list", { name: "Plan nodes" });
-  if (!(await tree.isVisible())) {
+  const capture = page.getByRole("button", { name: "Capture plan now" });
+  // Wait for the plan to load (either the tree or "not captured yet") before deciding.
+  await expect(tree.or(capture)).toBeVisible();
+  if (await capture.isVisible()) {
     // The collector plans new operations within a cycle; capture now if it hasn't yet.
-    await page.getByRole("button", { name: "Capture plan now" }).click();
+    await capture.click();
   }
   const scan = tree.locator('[data-node-type="Seq Scan"]');
   await expect(scan).toBeVisible();

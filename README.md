@@ -20,23 +20,33 @@ and the main README.
   - A detail page with the **capability checklist**: what works, and the exact fix (with a
     Copy button) for what doesn't.
   - Re-check and delete. Write actions are disabled or hidden for the demo user.
-- **Workload home**: a health strip with one card per source (status, last-hour calls and
-  execution time, a calls-per-minute sparkline), and the collector's running state.
-- **Collection panel** on each source: last collection, eviction warnings, and charts of calls and
-  execution time per minute with a table view of the data. Charts use ECharts, loaded on demand.
-- **Workload explorer** on the home page: operations ranked by total time, mean time or calls
-  over a time range, filtered by source and statement text. Every filter and the time range live
-  in the URL (typed TanStack Router search params), so a copied link reopens the same view.
-  **Lock range** fixes a relative range to absolute times for sharing.
-- **Operation detail**: the statement, its metrics over the range (total time and share, calls,
-  mean, rows, cache hit ratio) and its history per minute or hour.
+- **Workload home**: a health strip with one card per source (status, last-hour calls, or
+  profiled operations for MongoDB, and execution time, a sparkline), and the collector's
+  running state.
+- **Collection panel** on each source: last collection, eviction or full-profiler warnings, and
+  charts of calls (profiled operations) and execution time per minute with a table view of the
+  data. Charts use ECharts, loaded on demand.
+- **Server panel** on MongoDB sources: uptime, role, connections, cache and operations per
+  second from `serverStatus`.
+- **Workload explorer** on the home page: PostgreSQL statements and MongoDB query shapes in one
+  ranking by total time, mean time or calls over a time range, each with an engine badge,
+  filtered by source and statement or shape text. Every filter and the time range live in the
+  URL (typed TanStack Router search params), so a copied link reopens the same view. **Lock
+  range** fixes a relative range to absolute times for sharing. A MongoDB source whose
+  profiler is off gets a notice with the exact fix instead of an empty list.
+- **Operation detail**: the statement or query shape, its metrics over the range (total time
+  and share, calls, mean, rows and cache hit ratio for PostgreSQL; operations, documents
+  returned and examined per returned for MongoDB) and its history per minute or hour.
 - **PostgreSQL plan viewer**: the generic plan's node tree with estimated cost and rows,
   conditions and sort keys, sequential scans highlighted, the raw EXPLAIN JSON, and a clear
   reason when there is no plan. The admin can re-capture a plan.
+- **MongoDB plan viewer**: the winning plan's stages with index, filter, bounds and sort
+  pattern (values shown as `?`), collection scans, in-memory sorts and whole-index scans
+  flagged, the rejected-plan count, and the stored (redacted) explain JSON.
 - **Findings**: findings from the backend's rules, filtered by status (open, dismissed,
-  resolved), source and rule in the URL. Each shows its rule, confidence, whether it rests on a
-  captured plan or a statistics heuristic, the facts behind it, the suggested SQL with a Copy
-  button (never run for you), and its evidence links. A plan link opens the **exact plan the
+  resolved), source and rule in the URL. Each shows its rule, engine, confidence, whether it
+  rests on a captured plan or a statistics heuristic, the facts behind it, the suggested SQL
+  or mongosh command with a Copy button (never run for you), and its evidence links. A plan link opens the **exact plan the
   finding cites**, with the cited node outlined. The admin can dismiss, resolve and reopen; the
   navigation shows how many are open.
 - **Findings on operation detail**: an operation's findings appear above its plan.
@@ -110,8 +120,9 @@ src/
   features/
     auth/           sign-in page, session queries and mutations
     shell/          app shell: navigation, user, sign out
-    sources/        data sources: list, add/edit form, detail, checklist, collection panel
-    workload/       home page health strip and the workload queries
+    sources/        data sources: list, add/edit form, detail, checklist, collection and server panels
+    workload/       health strip, explorer, operation page, plan viewers (PostgreSQL, MongoDB)
+    findings/       findings page, finding card, queries
   components/charts/  ECharts wrapper (lazy-loaded) and the one-series TrendChart
     placeholder/    pages for screens that later phases build
   components/ui/    shadcn/ui-style building blocks (button, input, card, ...)

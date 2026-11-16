@@ -70,11 +70,12 @@ test("add the demo MongoDB and see the profiler fix (QP-AC-05, QP-AC-06)", async
   const name = `E2E MongoDB ${run}`;
   await page.goto("/sources/new");
   await page.getByLabel("Engine").selectOption("mongodb");
-  await fill(page, { Name: name, Host: "mongo", Database: "shop" });
+  // The demo seed profiles `shop` (Phase 6); `inventory` isn't profiled, so it shows the gap.
+  await fill(page, { Name: name, Host: "mongo", Database: "inventory" });
 
   await page.getByRole("button", { name: "Test connection" }).click();
   await expect(page.getByText(/Connected to version 7/)).toBeVisible();
-  await expect(page.getByText("Profiling is off on database 'shop'.").first()).toBeVisible();
+  await expect(page.getByText("Profiling is off on database 'inventory'.").first()).toBeVisible();
   await expect(page.getByText(/db\.setProfilingLevel\(1/).first()).toBeVisible();
 
   await page.getByRole("button", { name: "Save source" }).click();

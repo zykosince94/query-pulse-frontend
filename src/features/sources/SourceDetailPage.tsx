@@ -11,6 +11,7 @@ import { dateTime, timeAgo } from "@/lib/format";
 import { CollectionPanel } from "./CollectionPanel";
 import { CapabilityChecklist, ConnectionError, EngineBadge, StatusBadge } from "./components";
 import { sourceQuery, useDeleteSource, useRecheckSource } from "./queries";
+import { ServerPanel } from "./ServerPanel";
 
 const TLS_LABELS = {
   disable: "Off",
@@ -156,6 +157,7 @@ export function SourceDetailPage({ sourceId }: { sourceId: number }) {
       </Card>
 
       <CollectionPanel source={source} />
+      {source.engine === "mongodb" && source.enabled && <ServerPanel sourceId={source.id} />}
 
       <section aria-labelledby="capabilities-heading" className="flex flex-col gap-3">
         <div>

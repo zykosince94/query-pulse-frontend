@@ -215,6 +215,9 @@ export interface paths {
         /**
          * Capture Operation Plan
          * @description Plan the statement again now with EXPLAIN (GENERIC_PLAN). Never executes it.
+         *
+         *     PostgreSQL only: MongoDB plans need a profiled command, which only the collector holds
+         *     (in memory), so for a MongoDB operation this returns the stored plan unchanged.
          */
         post: operations["captureOperationPlan"];
         delete?: never;
@@ -352,6 +355,26 @@ export interface paths {
          *     Always returns the source; a failed check shows as `status: failing` with `last_error`.
          */
         post: operations["checkSource"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sources/{source_id}/server": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Source Server Metrics
+         * @description A MongoDB source's latest serverStatus sample and operation rates (null if none yet).
+         */
+        get: operations["getSourceServerMetrics"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -595,6 +618,7 @@ export interface components {
              * @enum {string}
              */
             confidence: "high" | "medium" | "low";
+            engine: components["schemas"]["SourceEngine"];
             /** Evidence */
             evidence: components["schemas"]["EvidenceOut"][];
             /**
@@ -700,6 +724,54 @@ export interface components {
             /** Username */
             username: string;
         };
+        /**
+         * MongoPlanStage
+         * @description One stage of a MongoDB winning plan (explain at queryPlanner verbosity, redacted).
+         *
+         *     Values from the query are "?" (filters) or dropped; index bounds keep only full ranges.
+         */
+        MongoPlanStage: {
+            /**
+             * Children
+             * @default []
+             */
+            children: components["schemas"]["MongoPlanStage"][];
+            /**
+             * Details
+             * @default {}
+             */
+            details: {
+                [key: string]: string;
+            };
+            /** Direction */
+            direction?: string | null;
+            /** Filter */
+            filter?: string | null;
+            /**
+             * Full Index Scan
+             * @default false
+             */
+            full_index_scan: boolean;
+            /**
+             * Index Bounds
+             * @default {}
+             */
+            index_bounds: {
+                [key: string]: string[];
+            };
+            /** Index Name */
+            index_name?: string | null;
+            /** Is Multi Key */
+            is_multi_key?: boolean | null;
+            /** Key Pattern */
+            key_pattern?: string | null;
+            /** Path */
+            path: string;
+            /** Sort Pattern */
+            sort_pattern?: string | null;
+            /** Stage */
+            stage: string;
+        };
         /** OperationDetail */
         OperationDetail: {
             /** Bucket Seconds */
@@ -747,7 +819,10 @@ export interface components {
         };
         /**
          * OperationPlan
-         * @description The latest generic plan for an operation, or why there isn't one.
+         * @description The latest plan for an operation, or why there isn't one.
+         *
+         *     PostgreSQL plans come from EXPLAIN (GENERIC_PLAN) and fill `root`; MongoDB plans come
+         *     from explain at queryPlanner verbosity and fill `stage_root`.
          *
          *     - captured: `root` and `raw` hold the plan.
          *     - failed: EXPLAIN was tried and `reason` says why it gave no plan.
@@ -759,17 +834,30 @@ export interface components {
             captured_at?: string | null;
             /** Checked At */
             checked_at?: string | null;
+            /** @default postgres */
+            engine: components["schemas"]["SourceEngine"];
             /** Fix */
             fix?: string | null;
             /** Operation Id */
             operation_id: number;
+            /**
+             * Pipeline Stages
+             * @default []
+             */
+            pipeline_stages: string[];
             /** Plan Id */
             plan_id?: number | null;
             /** Raw */
             raw?: unknown[] | null;
             /** Reason */
             reason?: string | null;
+            /**
+             * Rejected Plans
+             * @default 0
+             */
+            rejected_plans: number;
             root?: components["schemas"]["PlanNode"] | null;
+            stage_root?: components["schemas"]["MongoPlanStage"] | null;
             /**
              * Status
              * @enum {string}
@@ -783,6 +871,10 @@ export interface components {
         OperationSummary: {
             /** Calls */
             calls: number;
+            /** Command */
+            command?: string | null;
+            /** Docs Examined */
+            docs_examined?: number | null;
             engine: components["schemas"]["SourceEngine"];
             /**
              * First Seen At
@@ -791,6 +883,8 @@ export interface components {
             first_seen_at: string;
             /** Id */
             id: number;
+            /** Keys Examined */
+            keys_examined?: number | null;
             /**
              * Last Seen At
              * Format: date-time
@@ -798,6 +892,8 @@ export interface components {
             last_seen_at: string;
             /** Mean Exec Time Ms */
             mean_exec_time_ms: number;
+            /** Namespace */
+            namespace?: string | null;
             /** Query */
             query: string;
             /** Rows */
@@ -900,6 +996,42 @@ export interface components {
             /** Title */
             title: string;
         };
+        /**
+         * ServerMetrics
+         * @description A MongoDB server's latest serverStatus sample, with operation rates since the one
+         *     before it (None when there's no earlier sample, or the server restarted in between).
+         */
+        ServerMetrics: {
+            /** Cache Bytes */
+            cache_bytes: number | null;
+            /** Cache Max Bytes */
+            cache_max_bytes: number | null;
+            /**
+             * Captured At
+             * Format: date-time
+             */
+            captured_at: string;
+            /** Connections Available */
+            connections_available: number | null;
+            /** Connections Current */
+            connections_current: number | null;
+            /** Opcounters */
+            opcounters: {
+                [key: string]: number;
+            };
+            /** Rate Seconds */
+            rate_seconds: number | null;
+            /** Rates Per Second */
+            rates_per_second: {
+                [key: string]: number;
+            } | null;
+            /** Repl State */
+            repl_state: string | null;
+            /** Source Id */
+            source_id: number;
+            /** Uptime Seconds */
+            uptime_seconds: number;
+        };
         /** SourceCreate */
         SourceCreate: {
             /** Database */
@@ -943,6 +1075,11 @@ export interface components {
         SourceDetail: {
             /** Capabilities */
             capabilities: components["schemas"]["CapabilityOut"][];
+            /**
+             * Capability Gaps
+             * @default []
+             */
+            capability_gaps: components["schemas"]["CapabilityOut"][];
             /**
              * Created At
              * Format: date-time
@@ -1012,6 +1149,11 @@ export interface components {
         };
         /** SourceOut */
         SourceOut: {
+            /**
+             * Capability Gaps
+             * @default []
+             */
+            capability_gaps: components["schemas"]["CapabilityOut"][];
             /**
              * Created At
              * Format: date-time
@@ -1830,6 +1972,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SourceDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getSourceServerMetrics: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                source_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServerMetrics"] | null;
                 };
             };
             /** @description Validation Error */

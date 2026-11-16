@@ -38,6 +38,8 @@ export type OperationSummary = Schemas["OperationSummary"];
 export type OperationDetail = Schemas["OperationDetail"];
 export type OperationPlan = Schemas["OperationPlan"];
 export type PlanNode = Schemas["PlanNode"];
+export type MongoPlanStage = Schemas["MongoPlanStage"];
+export type ServerMetrics = Schemas["ServerMetrics"];
 
 type WindowParams = { minutes?: number; start?: string; end?: string };
 type ListParams = WindowParams & {
@@ -76,6 +78,17 @@ export const operationPlanQuery = (id: number) =>
           params: { path: { operation_id: id } },
         }),
       ),
+  });
+
+/** A MongoDB source's latest serverStatus sample and operation rates (null until the first). */
+export const serverMetricsQuery = (sourceId: number) =>
+  queryOptions({
+    queryKey: ["sources", sourceId, "server"] as const,
+    queryFn: () =>
+      unwrap(
+        api.GET("/api/sources/{source_id}/server", { params: { path: { source_id: sourceId } } }),
+      ),
+    refetchInterval: REFRESH_MS,
   });
 
 /** Admin only: plan the statement again now (EXPLAIN GENERIC_PLAN; never executes it). */

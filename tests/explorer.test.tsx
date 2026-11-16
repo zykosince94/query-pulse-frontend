@@ -10,6 +10,7 @@ import {
   DEMO_USER,
   makeOperation,
   makeSource,
+  planOf,
   server,
 } from "./fake-backend";
 import { renderApp } from "./render-app";
@@ -147,7 +148,7 @@ describe("workload explorer", () => {
     });
     expect(screen.getByLabelText("Rank by")).toHaveValue("calls");
     expect(screen.getByLabelText("Source")).toHaveValue("1");
-    expect(screen.getByLabelText("Statement contains")).toHaveValue("orders");
+    expect(screen.getByLabelText("Statement or shape contains")).toHaveValue("orders");
     expect(screen.getByLabelText("Time range")).toHaveValue("custom");
   });
 
@@ -159,7 +160,7 @@ describe("workload explorer", () => {
     await user.selectOptions(screen.getByLabelText("Rank by"), "calls");
     await user.selectOptions(screen.getByLabelText("Time range"), "15m");
     await user.selectOptions(screen.getByLabelText("Source"), "2");
-    await user.type(screen.getByLabelText("Statement contains"), "invoices{Enter}");
+    await user.type(screen.getByLabelText("Statement or shape contains"), "invoices{Enter}");
 
     expect(router.state.location.search).toEqual({
       sort: "calls",
@@ -327,12 +328,15 @@ describe("plan viewer", () => {
 
   it("explains why a source can't produce plans, with the fix", async () => {
     seedWorkload();
-    backend.plans.set(11, {
-      operation_id: 11,
-      status: "unavailable",
-      reason: "Generic plans need PostgreSQL 16 or later.",
-      fix: "Upgrade to PostgreSQL 16 or later.",
-    });
+    backend.plans.set(
+      11,
+      planOf({
+        operation_id: 11,
+        status: "unavailable",
+        reason: "Generic plans need PostgreSQL 16 or later.",
+        fix: "Upgrade to PostgreSQL 16 or later.",
+      }),
+    );
     renderApp("/operations/11");
     expect(await screen.findByText("Plans aren't available for this source.")).toBeInTheDocument();
     expect(screen.getByText("Upgrade to PostgreSQL 16 or later.")).toBeInTheDocument();
@@ -340,12 +344,15 @@ describe("plan viewer", () => {
 
   it("shows why planning failed", async () => {
     seedWorkload();
-    backend.plans.set(11, {
-      operation_id: 11,
-      status: "failed",
-      plan_id: 3,
-      reason: "The monitoring user can't read a table in this statement.",
-    });
+    backend.plans.set(
+      11,
+      planOf({
+        operation_id: 11,
+        status: "failed",
+        plan_id: 3,
+        reason: "The monitoring user can't read a table in this statement.",
+      }),
+    );
     renderApp("/operations/11");
     expect(await screen.findByText("PostgreSQL couldn't plan this statement.")).toBeInTheDocument();
     expect(screen.getByText(/can't read a table/)).toBeInTheDocument();

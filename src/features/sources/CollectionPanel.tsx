@@ -11,7 +11,8 @@ const MINUTES = 60;
 
 /** Collection status and the last hour's activity for one source. */
 export function CollectionPanel({ source }: { source: SourceDetail }) {
-  const collects = source.engine === "postgres" && source.enabled;
+  const collects = source.enabled;
+  const mongo = source.engine === "mongodb";
   const trend = useQuery({ ...sourceTrendQuery(source.id, MINUTES), enabled: collects });
 
   if (!collects) {
@@ -20,9 +21,7 @@ export function CollectionPanel({ source }: { source: SourceDetail }) {
         <CardHeader>
           <CardTitle className="text-base">Collection</CardTitle>
           <CardDescription>
-            {source.engine === "mongodb"
-              ? "MongoDB workload collection arrives in Phase 6."
-              : "This source is disabled, so the collector skips it. Enable it to collect again."}
+            This source is disabled, so the collector skips it. Enable it to collect again.
           </CardDescription>
         </CardHeader>
       </Card>
@@ -40,7 +39,11 @@ export function CollectionPanel({ source }: { source: SourceDetail }) {
         <CardDescription>
           {source.last_collected_at
             ? `Last collected ${timeAgo(source.last_collected_at)} (${dateTime(source.last_collected_at)}).`
-            : "Waiting for the first collection. The collector takes a baseline first, then records activity from the next cycle."}
+            : mongo
+              ? "Waiting for the first collection. The collector starts reading the profiler from the first cycle, and records operations from the next one."
+              : "Waiting for the first collection. The collector takes a baseline first, then records activity from the next cycle."}
+          {mongo &&
+            " MongoDB activity comes from the profiler, so it counts only the operations the profiler records (those slower than its slowms threshold)."}
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-5">
@@ -64,7 +67,9 @@ export function CollectionPanel({ source }: { source: SourceDetail }) {
         ) : (
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             <div className="flex flex-col gap-1">
-              <h3 className="text-sm font-medium">Calls per minute</h3>
+              <h3 className="text-sm font-medium">
+                {mongo ? "Profiled operations per minute" : "Calls per minute"}
+              </h3>
               <p className="text-xs text-muted-foreground">{count(totalCalls)} in the last hour</p>
               <TrendChart
                 data={points.map((p) => ({ start: p.start, value: p.calls }))}
