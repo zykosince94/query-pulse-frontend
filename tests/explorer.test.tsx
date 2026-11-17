@@ -1,6 +1,7 @@
 import { screen, within } from "@testing-library/react";
 import { HttpResponse, http } from "msw";
 import { describe, expect, it } from "vitest";
+import { analyse, ms } from "@/features/workload/OperationsScatter";
 import { lockWindow, validateExplorerSearch, windowParams } from "@/features/workload/search";
 import { count } from "@/lib/numbers";
 import {
@@ -373,5 +374,122 @@ describe("plan viewer", () => {
     renderApp("/operations/11");
     expect(await screen.findByText(/No plan captured yet/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Capture plan now" })).not.toBeInTheDocument();
+  });
+});
+
+describe("calls vs mean time", () => {
+  it("plots every operation and lists the same data on request", async () => {
+    seedWorkload();
+    const { user } = renderApp("/");
+    await rows();
+    expect(screen.getByRole("heading", { name: "Calls vs mean time" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("figure", { name: /Calls against mean time for 3 operations/ }),
+    ).toBeInTheDocument();
+    // The data table is built only when opened, so it doesn't repeat the explorer's own rows.
+    expect(
+      screen.queryByRole("table", { name: /Calls against mean time/ }),
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getByText("Show data"));
+    const table = await screen.findByRole("table", { name: /Calls against mean time/ });
+    const body = within(table).getAllByRole("row").slice(1);
+    // Ordered by total time, each a link to its operation.
+    expect(body.map((row) => within(row).getByRole("link").textContent)).toEqual([
+      "SELECT id, status, total FROM orders WHERE customer_id = $1",
+      "SELECT id FROM orders ORDER BY created_at DESC LIMIT $1",
+      "SELECT id FROM invoices WHERE id = $1",
+    ]);
+    expect(within(body[0] as HTMLElement).getByText(count(1000))).toBeInTheDocument();
+    expect(within(body[0] as HTMLElement).getByRole("link")).toHaveAttribute(
+      "href",
+      expect.stringContaining("/operations/11"),
+    );
+  });
+
+  it("says in words how much of the time the frequent, slow operations take", async () => {
+    seedWorkload();
+    renderApp("/");
+    await rows();
+    expect(screen.getByText(/Of the 3 shown,/)).toBeInTheDocument();
+    expect(screen.getByText(/both frequent and slow/)).toBeInTheDocument();
+  });
+
+  it("is left out when there are too few operations to compare", async () => {
+    seedWorkload();
+    backend.operations = backend.operations.slice(0, 2);
+    renderApp("/");
+    await rows();
+    expect(screen.queryByRole("heading", { name: "Calls vs mean time" })).not.toBeInTheDocument();
+  });
+
+  it("finds the medians, the frequent-and-slow group and what to label", () => {
+    const op = (id: number, calls: number, mean: number, total: number, share: number) =>
+      makeOperation({
+        id,
+        calls,
+        mean_exec_time_ms: mean,
+        total_exec_time_ms: total,
+        share_of_total_time: share,
+      });
+    const stats = analyse([
+      op(1, 10_000, 50, 500_000, 0.6), // frequent and slow
+      op(2, 9_000, 40, 360_000, 0.3), // frequent and slow
+      op(3, 8_000, 1, 8_000, 0.05), // frequent, fast
+      op(4, 10, 80, 800, 0.03), // rare, slow
+      op(5, 5, 0.5, 2.5, 0.02), // rare, fast
+    ]);
+    expect(stats.medianCalls).toBe(8_000);
+    expect(stats.medianMean).toBe(40);
+    expect(stats.hot.map((d) => d.id)).toEqual([1, 2]);
+    // (500,000 + 360,000) of 868,802.5 ms: from the times, not from the per-source shares.
+    expect(stats.hotShare).toBeCloseTo(0.99, 2);
+    expect([...stats.top].sort()).toEqual([1, 2, 3]);
+    expect(stats.maxTotal).toBe(500_000);
+  });
+
+  it("never claims more than 100% when the operations come from two sources", () => {
+    // Each share is within its own source, so these two "100%" shares add up to 200%.
+    const stats = analyse([
+      makeOperation({
+        id: 1,
+        source_id: 1,
+        calls: 900,
+        mean_exec_time_ms: 9,
+        total_exec_time_ms: 8100,
+        share_of_total_time: 1,
+      }),
+      makeOperation({
+        id: 2,
+        source_id: 2,
+        calls: 800,
+        mean_exec_time_ms: 8,
+        total_exec_time_ms: 6400,
+        share_of_total_time: 1,
+      }),
+      makeOperation({
+        id: 3,
+        source_id: 2,
+        calls: 5,
+        mean_exec_time_ms: 1,
+        total_exec_time_ms: 5,
+        share_of_total_time: 0.0001,
+      }),
+    ]);
+    expect(stats.hotShare).toBeLessThanOrEqual(1);
+    expect(stats.hotShare).toBeCloseTo(14_500 / 14_505, 3);
+  });
+
+  it("prints small times precisely, since the axis is logarithmic", () => {
+    expect(ms(0.01)).toBe("0.01 ms");
+    expect(ms(0.05)).toBe("0.05 ms");
+    expect(ms(0.4)).toBe("0.4 ms");
+    expect(ms(850)).toBe("850 ms");
+    expect(ms(2300)).toBe("2.3 s");
+  });
+
+  it("keeps a zero mean on the log axis", () => {
+    const stats = analyse([makeOperation({ id: 1, calls: 0, mean_exec_time_ms: 0 })]);
+    expect(stats.dots[0]?.value.slice(0, 2)).toEqual([1, 0.01]);
   });
 });

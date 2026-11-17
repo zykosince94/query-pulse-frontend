@@ -14,6 +14,7 @@ import {
   useSaveAISettings,
 } from "@/features/ai/queries";
 import { useCanWrite } from "@/features/auth/queries";
+import { AppearanceCard } from "@/features/theme/AppearanceCard";
 import { dateTime } from "@/lib/format";
 
 function seconds(value: number): string {
@@ -225,6 +226,7 @@ export function SettingsPage() {
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-6">
       <h1 className="text-2xl font-semibold">Settings</h1>
+      <AppearanceCard />
       <AICard />
       <RuntimeCard />
     </div>

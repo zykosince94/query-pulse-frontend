@@ -11,6 +11,7 @@ import { Select } from "@/components/ui/select";
 import { EngineBadge } from "@/features/sources/components";
 import { sourcesQuery } from "@/features/sources/queries";
 import { count, duration } from "@/lib/numbers";
+import { MIN_POINTS, OperationsScatter } from "./OperationsScatter";
 import { ProfilerGaps, profilerGaps } from "./ProfilerGaps";
 import { type OperationSummary, operationsQuery } from "./queries";
 import {
@@ -256,59 +257,64 @@ export function Explorer() {
               : "No operations were collected in this time range. Once a source is added, the collector records PostgreSQL statement statistics and MongoDB profiled operations every minute (15 s in the demo)."}
         </Card>
       ) : data ? (
-        <Card className="overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[44rem] text-sm">
-              <caption className="sr-only">
-                Operations ranked by {SORTS.find((s) => s.value === sort)?.label.toLowerCase()},{" "}
-                {describeWindow(search).toLowerCase()}
-              </caption>
-              <thead className="bg-muted text-xs text-muted-foreground">
-                <tr>
-                  <th scope="col" className="px-3 py-2 text-right font-semibold">
-                    #
-                  </th>
-                  <th scope="col" className="px-3 py-2 text-left font-semibold">
-                    Operation
-                  </th>
-                  {(
-                    [
-                      ["total_time", "Total time"],
-                      [null, "Share"],
-                      ["calls", "Calls"],
-                      ["mean_time", "Mean"],
-                      [null, "Rows"],
-                    ] as const
-                  ).map(([key, label]) => (
-                    <th
-                      key={label}
-                      scope="col"
-                      className="px-3 py-2 text-right font-semibold"
-                      aria-sort={key && key === sort ? "descending" : undefined}
-                    >
-                      {key && key === sort ? (
-                        <span className="text-foreground">{label} ↓</span>
-                      ) : (
-                        label
-                      )}
+        <>
+          {data.operations.length >= MIN_POINTS && (
+            <OperationsScatter operations={data.operations} search={search} />
+          )}
+          <Card className="overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[44rem] text-sm">
+                <caption className="sr-only">
+                  Operations ranked by {SORTS.find((s) => s.value === sort)?.label.toLowerCase()},{" "}
+                  {describeWindow(search).toLowerCase()}
+                </caption>
+                <thead className="bg-muted text-xs text-muted-foreground">
+                  <tr>
+                    <th scope="col" className="px-3 py-2 text-right font-semibold">
+                      #
                     </th>
+                    <th scope="col" className="px-3 py-2 text-left font-semibold">
+                      Operation
+                    </th>
+                    {(
+                      [
+                        ["total_time", "Total time"],
+                        [null, "Share"],
+                        ["calls", "Calls"],
+                        ["mean_time", "Mean"],
+                        [null, "Rows"],
+                      ] as const
+                    ).map(([key, label]) => (
+                      <th
+                        key={label}
+                        scope="col"
+                        className="px-3 py-2 text-right font-semibold"
+                        aria-sort={key && key === sort ? "descending" : undefined}
+                      >
+                        {key && key === sort ? (
+                          <span className="text-foreground">{label} ↓</span>
+                        ) : (
+                          label
+                        )}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.operations.map((op, i) => (
+                    <OperationRow key={op.id} op={op} rank={i + 1} search={search} />
                   ))}
-                </tr>
-              </thead>
-              <tbody>
-                {data.operations.map((op, i) => (
-                  <OperationRow key={op.id} op={op} rank={i + 1} search={search} />
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <p className="border-t px-3 py-2 text-xs text-muted-foreground">
-            {data.total_count > data.operations.length
-              ? `Top ${data.operations.length} of ${count(data.total_count)} operations`
-              : `${count(data.total_count)} operation${data.total_count === 1 ? "" : "s"}`}{" "}
-            · {duration(data.total_exec_time_ms)} total execution time · {describeWindow(search)}
-          </p>
-        </Card>
+                </tbody>
+              </table>
+            </div>
+            <p className="border-t px-3 py-2 text-xs text-muted-foreground">
+              {data.total_count > data.operations.length
+                ? `Top ${data.operations.length} of ${count(data.total_count)} operations`
+                : `${count(data.total_count)} operation${data.total_count === 1 ? "" : "s"}`}{" "}
+              · {duration(data.total_exec_time_ms)} total execution time · {describeWindow(search)}
+            </p>
+          </Card>
+        </>
       ) : null}
     </section>
   );

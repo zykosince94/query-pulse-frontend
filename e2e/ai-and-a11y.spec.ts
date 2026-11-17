@@ -68,9 +68,17 @@ test("with AI off, the AI features say so and no provider request is made (QP-AC
   await expect(page.getByText("Off", { exact: true })).toBeVisible();
 
   await page.goto("/findings");
-  await page.getByRole("button", { name: "AI assistant" }).first().click();
+  // A finding that has answers (the demo's samples) opens by itself; otherwise open it.
+  const toggle = page.getByRole("button", { name: "AI assistant" }).first();
   const panel = page.getByRole("region", { name: "AI assistant answers" }).first();
-  await expect(panel.getByText(/AI is off/)).toBeVisible();
+  await toggle.waitFor();
+  await expect(panel)
+    .toBeVisible({ timeout: 2_000 })
+    .catch(async () => {
+      await toggle.click();
+    });
+  // Off says so: plainly, or by labelling the demo's written-in-advance samples as samples.
+  await expect(panel.getByText(/AI is off|These are sample answers/)).toBeVisible();
   await expect(panel.getByRole("button", { name: "Explain this finding" })).toHaveCount(0);
   // What would be sent is still visible, and holds no connection details.
   await panel.getByRole("button", { name: "View what is sent" }).click();

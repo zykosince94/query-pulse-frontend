@@ -13,6 +13,7 @@ import {
 } from "@tanstack/react-router";
 import { ApiError } from "@/api/client";
 import { Button } from "@/components/ui/button";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { LoginPage } from "@/features/auth/LoginPage";
 import { currentUserQuery } from "@/features/auth/queries";
 import { FindingsPage, validateFindingsSearch } from "@/features/findings/FindingsPage";
@@ -41,6 +42,10 @@ function safeRedirect(value: unknown): string | undefined {
   } catch {
     return undefined;
   }
+}
+
+function PendingOverlay() {
+  return <LoadingOverlay label="Loading…" fullscreen />;
 }
 
 function NotFound() {
@@ -234,6 +239,11 @@ export function createAppRouter(options: { history?: RouterHistory } = {}) {
     routeTree,
     context: { queryClient },
     defaultPreload: "intent",
+    // A slow page or the first sign-in check gets a full-window veil, but only after 300 ms, so
+    // quick loads don't flash it; once shown it stays 400 ms so it doesn't blink.
+    defaultPendingComponent: PendingOverlay,
+    defaultPendingMs: 300,
+    defaultPendingMinMs: 400,
     ...(options.history ? { history: options.history } : {}),
   });
 

@@ -1,5 +1,7 @@
 import type { EChartsCoreOption } from "echarts/core";
 import { lazy, Suspense, useMemo } from "react";
+import { useTheme } from "@/features/theme/theme";
+import { token } from "./tokens";
 
 // ECharts is large; load it only when a chart is first shown, not with the initial page.
 const EChart = lazy(() => import("./EChart").then((m) => ({ default: m.EChart })));
@@ -30,12 +32,6 @@ const dayTimeFormat = new Intl.DateTimeFormat(undefined, {
   minute: "2-digit",
 });
 
-function token(name: string, fallback: string): string {
-  if (typeof window === "undefined") return fallback;
-  const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-  return value || fallback;
-}
-
 /** Tooltip built from DOM nodes with textContent (never an HTML string): value first, then time. */
 function tooltipNode(value: string, unit: string, time: string): HTMLElement {
   const root = document.createElement("div");
@@ -63,6 +59,9 @@ export function TrendChart({
   bucket = "minute",
 }: Props) {
   const times = bucket === "hour" ? dayTimeFormat : timeFormat;
+  // The colours are read from the CSS tokens, so a new mode or theme must rebuild the option.
+  const { mode, palette } = useTheme();
+  // biome-ignore lint/correctness/useExhaustiveDependencies: mode and palette change the tokens read inside
   const option = useMemo<EChartsCoreOption>(() => {
     const color = token("--chart-1", "#1d4ed8");
     const grid = token("--chart-grid", "#e7edf5");
@@ -116,7 +115,7 @@ export function TrendChart({
         },
       ],
     };
-  }, [data, unit, format, compact, times]);
+  }, [data, unit, format, compact, times, mode, palette]);
 
   return (
     <div className="flex flex-col gap-2">

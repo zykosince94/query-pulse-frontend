@@ -1,11 +1,15 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, Outlet } from "@tanstack/react-router";
-import { Activity, Database, Gauge, LogOut, Settings, TriangleAlert } from "lucide-react";
+import { Database, Gauge, LogOut, Settings, TriangleAlert } from "lucide-react";
 import type { ComponentType, SVGProps } from "react";
+import { DeveloperCredit } from "@/components/DeveloperCredit";
+import { Logo } from "@/components/Logo";
+import { LogoWatermark } from "@/components/LogoWatermark";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useCurrentUser, useLogout } from "@/features/auth/queries";
 import { findingsQuery } from "@/features/findings/queries";
+import { SyncIndicator } from "./SyncIndicator";
 
 type NavItem = {
   to: "/" | "/sources" | "/findings" | "/settings";
@@ -35,7 +39,7 @@ export function AppShell() {
     <div className="flex min-h-svh flex-col md:flex-row">
       <aside className="border-b bg-card md:w-60 md:shrink-0 md:border-r md:border-b-0">
         <div className="flex h-14 items-center gap-2 px-4 text-primary">
-          <Activity aria-hidden className="size-5" />
+          <Logo className="size-6" />
           <span className="font-semibold text-foreground">Query Pulse</span>
         </div>
         <nav aria-label="Main" className="flex gap-1 overflow-x-auto px-2 pb-2 md:flex-col md:pb-0">
@@ -60,14 +64,15 @@ export function AppShell() {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-14 items-center justify-end gap-3 border-b bg-card px-4">
+        <header className="flex min-h-14 flex-wrap items-center justify-end gap-x-3 gap-y-1 border-b bg-card px-4 py-1.5">
           {user.read_only && (
             <Badge variant="warning" title="You can explore everything but change nothing">
               Read-only demo
             </Badge>
           )}
           <span className="text-sm text-muted-foreground">
-            Signed in as <span className="font-medium text-foreground">{user.username}</span>
+            <span className="hidden sm:inline">Signed in as </span>
+            <span className="font-medium text-foreground">{user.username}</span>
           </span>
           <Button
             variant="ghost"
@@ -80,10 +85,16 @@ export function AppShell() {
           </Button>
         </header>
 
-        <main className="flex-1 px-4 py-6 md:px-8">
+        <main className="flex-1 px-4 py-8 md:px-10">
           <Outlet />
         </main>
+        <footer className="border-t px-4 py-5 pb-20 md:px-10">
+          <DeveloperCredit />
+        </footer>
       </div>
+      {/* The logo, much fainter than on the sign-in screen, behind every page. */}
+      <LogoWatermark className="fixed -right-24 -bottom-28 -z-10 size-[44rem] opacity-[0.035] print:hidden" />
+      <SyncIndicator />
     </div>
   );
 }

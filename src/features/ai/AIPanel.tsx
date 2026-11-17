@@ -1,10 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { Bot, ChevronDown, ChevronRight, ShieldAlert } from "lucide-react";
+import { ChevronDown, ChevronRight, ShieldAlert, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { LoadingOverlay, useElapsedSeconds } from "@/components/ui/loading-overlay";
 import { useCanWrite } from "@/features/auth/queries";
 import { CopyButton } from "@/features/sources/components";
 import { dateTime } from "@/lib/format";
@@ -17,6 +18,10 @@ import {
 } from "./queries";
 
 type Claim = NonNullable<AIAnswer["summary"]>;
+
+/** Answers the demo stores in advance (backend: query_pulse/demo/ai_samples.py). */
+export const SAMPLE_PROVIDER = "sample";
+const isSample = (answer: AIAnswer | null | undefined) => answer?.provider === SAMPLE_PROVIDER;
 
 function Citations({ claim }: { claim: Claim }) {
   if (!claim.cited) {
@@ -62,13 +67,22 @@ function Answer({ answer, title }: { answer: AIAnswer; title: string }) {
   return (
     <div className="flex flex-col gap-2 rounded-md border bg-card p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h5 className="text-sm font-semibold">{title}</h5>
+        <h5 className="flex items-center gap-2 text-sm font-semibold">
+          {title}
+          {isSample(answer) && (
+            <Badge variant="outline" title="Written in advance for the demo, not by a live model">
+              Sample answer
+            </Badge>
+          )}
+        </h5>
         <span className="text-xs text-muted-foreground">
-          {answer.provider} · {answer.model}
-          {answer.created_at ? ` · ${dateTime(answer.created_at)}` : ""}
+          {isSample(answer)
+            ? "Written in advance for the demo, not generated live"
+            : `${answer.provider} · ${answer.model}${answer.created_at ? ` · ${dateTime(answer.created_at)}` : ""}`}
         </span>
       </div>
-      {!answer.current && (
+      {/* Samples cite fact ids, not values, and the demo re-points them at new evidence. */}
+      {!answer.current && !isSample(answer) && (
         <p className="text-xs text-warning">
           The evidence has changed since this answer was given; ask again for a fresh one.
         </p>
@@ -162,6 +176,7 @@ function PanelBody({ findingId }: { findingId: number }) {
   const canWrite = useCanWrite();
   const ask = useAskAI(findingId);
   const [rejected, setRejected] = useState<AIAnswer | null>(null);
+  const waited = useElapsedSeconds(ask.isPending);
 
   if (state.isPending) {
     return (
@@ -180,39 +195,59 @@ function PanelBody({ findingId }: { findingId: number }) {
     });
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="relative flex flex-col gap-4 rounded-lg">
+      {ask.isPending && (
+        <LoadingOverlay
+          label={ask.variables === "draft" ? "Drafting a fix…" : "Asking the model to explain…"}
+          detail={`Waiting for the provider · ${waited} s. Slower models can take a minute or two.`}
+          className="rounded-lg"
+        />
+      )}
       <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
         <ShieldAlert aria-hidden className="mt-0.5 size-3.5 shrink-0" />
         Advisory. The rules raised this finding; AI only explains it and drafts a fix from the
         evidence below, citing it claim by claim. Check before acting.
       </p>
-      {!enabled && (
+      {!enabled && (isSample(explain) || isSample(draft)) ? (
         <p className="text-sm text-muted-foreground">
-          AI is off.{" "}
+          These are sample answers, written in advance for this demo from the same evidence the
+          assistant would be sent.{" "}
           {canWrite ? (
             <>
-              Turn it on in{" "}
+              For live answers, turn AI on in{" "}
               <Link to="/settings" className="text-primary hover:underline">
                 Settings
               </Link>
               .
             </>
           ) : (
-            "An admin can turn it on in Settings."
+            "Live answers need an admin to turn AI on."
           )}
         </p>
+      ) : (
+        !enabled && (
+          <p className="text-sm text-muted-foreground">
+            AI is off.{" "}
+            {canWrite ? (
+              <>
+                Turn it on in{" "}
+                <Link to="/settings" className="text-primary hover:underline">
+                  Settings
+                </Link>
+                .
+              </>
+            ) : (
+              "An admin can turn it on in Settings."
+            )}
+          </p>
+        )
       )}
       {enabled && canWrite && (
         <div className="flex flex-wrap gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={ask.isPending}
-            onClick={() => run("explain")}
-          >
+          <Button disabled={ask.isPending} onClick={() => run("explain")}>
             {ask.isPending && ask.variables === "explain" ? "Explaining…" : "Explain this finding"}
           </Button>
-          <Button variant="outline" size="sm" disabled={ask.isPending} onClick={() => run("draft")}>
+          <Button variant="outline" disabled={ask.isPending} onClick={() => run("draft")}>
             {ask.isPending && ask.variables === "draft" ? "Drafting…" : "Draft a fix"}
           </Button>
         </div>
@@ -232,27 +267,43 @@ function PanelBody({ findingId }: { findingId: number }) {
 }
 
 /**
- * The AI assistant for one finding, collapsed until opened (so a list of findings doesn't
- * load anything). Everyone sees answers already given and the evidence that would be sent;
- * only the admin can ask, because each request costs money.
+ * The AI assistant for one finding. It is a distinct, tinted panel with a clear call to action.
+ * A finding that already has an explanation or a draft (a person asked for it, or it is one of
+ * the demo's samples) shows its panel open, so the answer is there to read; one without stays
+ * collapsed until opened. Opening or closing it yourself always wins. Deciding that is one cheap
+ * read per card; the model is only ever called by the admin's button. Everyone sees answers
+ * already given and the evidence that would be sent; only the admin can ask, because each
+ * request costs money.
  */
 export function AIPanel({ findingId }: { findingId: number }) {
-  const [open, setOpen] = useState(false);
+  const given = useQuery(findingAIQuery(findingId));
+  const hasAnswer = Boolean(given.data?.explain || given.data?.draft);
+  const [chosen, setChosen] = useState<boolean | null>(null);
+  const open = chosen ?? hasAnswer;
   return (
-    <div className="flex flex-col gap-2 border-t pt-3">
-      <Button
-        variant="ghost"
-        size="sm"
-        className="self-start"
-        aria-expanded={open}
-        onClick={() => setOpen((value) => !value)}
-      >
-        <Bot aria-hidden />
-        AI assistant
-        {open ? <ChevronDown aria-hidden /> : <ChevronRight aria-hidden />}
-      </Button>
+    <div className="flex flex-col gap-4 rounded-lg border border-primary/30 bg-secondary/50 p-5">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex min-w-0 items-center gap-3">
+          <span
+            aria-hidden
+            className="grid size-10 shrink-0 place-items-center rounded-lg bg-primary text-primary-foreground"
+          >
+            <Sparkles className="size-5" />
+          </span>
+          <p className="max-w-md text-sm leading-snug">
+            <span className="font-semibold text-secondary-foreground">Want it in plain words?</span>{" "}
+            <span className="text-muted-foreground">
+              Explain this finding or draft a fix, from the evidence above.
+            </span>
+          </p>
+        </div>
+        <Button aria-expanded={open} onClick={() => setChosen(!open)}>
+          AI assistant
+          {open ? <ChevronDown aria-hidden /> : <ChevronRight aria-hidden />}
+        </Button>
+      </div>
       {open && (
-        <section aria-label="AI assistant answers">
+        <section aria-label="AI assistant answers" className="border-t border-primary/20 pt-4">
           <PanelBody findingId={findingId} />
         </section>
       )}

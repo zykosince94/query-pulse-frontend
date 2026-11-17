@@ -34,6 +34,9 @@ and the main README.
   URL (typed TanStack Router search params), so a copied link reopens the same view. **Lock
   range** fixes a relative range to absolute times for sharing. A MongoDB source whose
   profiler is off gets a notice with the exact fix instead of an empty list.
+- **Calls vs mean time**: a scatter of the listed operations (log axes, dots sized by total
+  time, dashed medians) with a one-line summary of how much time the frequent and slow ones
+  take. Click a dot to open the operation; **Show data** lists the numbers.
 - **Operation detail**: the statement or query shape, its metrics over the range (total time
   and share, calls, mean, rows and cache hit ratio for PostgreSQL; operations, documents
   returned and examined per returned for MongoDB) and its history per minute or hour.
@@ -57,6 +60,18 @@ and the main README.
 - **Settings**: the AI provider, model and API key (masked to its last four characters; saved
   only after the provider accepts it; deletable), and the collection and retention values
   (read-only, from the backend's environment).
+- **Appearance** (Settings): light or dark mode (following the operating system until you
+  choose) and three colour themes: Pulse, Lagoon and Dusk. Your choice is remembered in the
+  browser and applied before first paint.
+- **Logo and sign-in screen**: a database-with-a-pulse mark (app icon, sidebar, and a faint
+  background wash), and a sign-in side panel on wide screens that explains what the rules,
+  the AI assistant and the reader each do. The demo's
+  **sample AI answers** labelled "Sample answer, written in advance" in the AI panel.
+- **Loading overlays** for the findings list, AI requests (with the time waited) and slow page
+  loads, and a credit line on the sign-in screen and at the foot of every page.
+- **Background refresh indicator**: a pill at the bottom right shows when data is being
+  refreshed, how fresh it is, and when updates fail or the browser is offline. Click it to
+  refresh now.
 - **Accessibility**: every main screen is checked with axe in light and dark mode in the
   end-to-end suite (no serious or critical violations); muted text meets WCAG AA contrast.
 - **Typed API client** generated from the backend's `openapi.json`.

@@ -65,3 +65,96 @@
   --chart-grid: #1f2b44;
   --chart-axis: #6f819c;
 }
+
+/*
+ * Colour themes. The base tokens above are the default, "Pulse". A theme overrides only what
+ * differs; the status colours (destructive, warning, success) stay the same in every theme so
+ * "bad" always looks bad. Every pair is checked for WCAG AA (4.5:1 text, 3:1 chart marks).
+ * The attribute is set on <html> by features/theme, next to the .dark class.
+ */
+:root {
+  /* The dot shown on each theme's picker button, independent of the active theme. */
+  --swatch-pulse: #1d4ed8;
+  --swatch-lagoon: #0f766e;
+  --swatch-dusk: #6d28d9;
+}
+
+/* Lagoon: calm teal, the colour of a healthy monitor. */
+:root[data-palette="lagoon"] {
+  --background: #f3f9f8;
+  --foreground: #0f2420;
+  --card-foreground: #0f2420;
+  --muted: #e8f2f0;
+  --muted-foreground: #486660;
+  --primary: #0f766e;
+  --secondary: #d9f2ee;
+  --secondary-foreground: #0b4f49;
+  --accent: #e3f5f2;
+  --accent-foreground: #0b4f49;
+  --border: #d3e6e2;
+  --input: #c5dad6;
+  --ring: #0f766e;
+  --chart-1: #0f766e;
+  --chart-grid: #dfeeeb;
+  --chart-axis: #86a39d;
+}
+:root[data-palette="lagoon"].dark {
+  --background: #081514;
+  --foreground: #d6ece8;
+  --card: #0e1f1e;
+  --card-foreground: #d6ece8;
+  --muted: #142a29;
+  --muted-foreground: #8fb3ac;
+  --primary: #2dd4bf;
+  --primary-foreground: #03201c;
+  --secondary: #12352f;
+  --secondary-foreground: #bff0e8;
+  --accent: #12332f;
+  --accent-foreground: #bff0e8;
+  --border: #1f3b38;
+  --input: #274744;
+  --ring: #2dd4bf;
+  --chart-1: #2bc4b0;
+  --chart-grid: #17302d;
+  --chart-axis: #6c8f89;
+}
+
+/* Dusk: soft violet on a quiet, slightly warm neutral. */
+:root[data-palette="dusk"] {
+  --background: #faf9fd;
+  --foreground: #1f1b33;
+  --card-foreground: #1f1b33;
+  --muted: #f1eff8;
+  --muted-foreground: #5d5878;
+  --primary: #6d28d9;
+  --secondary: #ede9fe;
+  --secondary-foreground: #4c1d95;
+  --accent: #f3f0ff;
+  --accent-foreground: #4c1d95;
+  --border: #e4e0f0;
+  --input: #d6d1e6;
+  --ring: #6d28d9;
+  --chart-1: #6d28d9;
+  --chart-grid: #ece9f5;
+  --chart-axis: #9a95b3;
+}
+:root[data-palette="dusk"].dark {
+  --background: #0e0c1a;
+  --foreground: #e6e2f6;
+  --card: #161329;
+  --card-foreground: #e6e2f6;
+  --muted: #1e1a36;
+  --muted-foreground: #a7a2c4;
+  --primary: #a78bfa;
+  --primary-foreground: #140f2a;
+  --secondary: #2b2352;
+  --secondary-foreground: #ddd6fe;
+  --accent: #251f48;
+  --accent-foreground: #ddd6fe;
+  --border: #2e2850;
+  --input: #383160;
+  --ring: #a78bfa;
+  --chart-1: #9a7df0;
+  --chart-grid: #221d3d;
+  --chart-axis: #7d78a0;
+}

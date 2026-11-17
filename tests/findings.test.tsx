@@ -1,5 +1,5 @@
 import { screen, within } from "@testing-library/react";
-import { HttpResponse, http } from "msw";
+import { delay, HttpResponse, http } from "msw";
 import { describe, expect, it } from "vitest";
 import { formatFact } from "@/features/findings/FindingCard";
 import { validateFindingsSearch } from "@/features/findings/FindingsPage";
@@ -232,6 +232,51 @@ describe("findings page", () => {
     );
     renderApp("/findings?status=resolved");
     expect(await screen.findByText("Couldn't load findings: Boom")).toBeInTheDocument();
+  });
+
+  it("veils the list while another tab loads, but not on the quiet refresh", async () => {
+    seed();
+    const { user } = renderApp("/findings");
+    await screen.findByText("Sequential scan on public.orders in a hot query");
+    expect(screen.queryByText("Updating findings…")).not.toBeInTheDocument();
+
+    server.use(
+      http.get("/api/findings", async () => {
+        await delay(400);
+        return HttpResponse.json({
+          findings: [
+            makeFinding({ id: 3, status: "dismissed", title: "An old, dismissed finding" }),
+          ],
+          counts: { open: 2, dismissed: 1, resolved: 0 },
+        });
+      }),
+    );
+    await user.click(screen.getByRole("tab", { name: /Dismissed/ }));
+    expect(await screen.findByText("Updating findings…")).toBeInTheDocument();
+    expect(await screen.findByText("An old, dismissed finding")).toBeInTheDocument();
+    expect(screen.queryByText("Updating findings…")).not.toBeInTheDocument();
+  });
+
+  it("opens the operation from the finding's title, on the cited plan when there is one", async () => {
+    seed();
+    renderApp("/findings");
+    const title = await screen.findByRole("heading", { name: /Sequential scan/ });
+    const link = within(title).getByRole("link", { name: /Sequential scan/ });
+    expect(link.getAttribute("href")).toMatch(/\/operations\/11\?.*plan=7.*#plan$/);
+
+    // An index finding has no page of its own: its title is plain text.
+    const index = await screen.findByRole("heading", { name: /never used/ });
+    expect(within(index).queryByRole("link")).not.toBeInTheDocument();
+  });
+
+  it("offers to clear the filters only while some are set", async () => {
+    seed();
+    const { user, router } = renderApp("/findings?source=1");
+    const clear = await screen.findByRole("button", { name: "Clear filters" });
+    await user.click(clear);
+    await screen.findByText("Sequential scan on public.orders in a hot query");
+    expect(router.state.location.search).toEqual({});
+    expect(screen.queryByRole("button", { name: "Clear filters" })).not.toBeInTheDocument();
   });
 
   it("counts open findings in the navigation", async () => {
