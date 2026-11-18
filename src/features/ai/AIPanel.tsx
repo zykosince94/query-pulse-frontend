@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { ChevronDown, ChevronRight, ShieldAlert, Sparkles } from "lucide-react";
+import { ChevronDown, ChevronRight, ChevronUp, ShieldAlert, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -297,9 +297,25 @@ export function AIPanel({ findingId }: { findingId: number }) {
             </span>
           </p>
         </div>
-        <Button aria-expanded={open} onClick={() => setChosen(!open)}>
-          AI assistant
-          {open ? <ChevronDown aria-hidden /> : <ChevronRight aria-hidden />}
+        <Button
+          size="lg"
+          variant={open ? "outline" : "default"}
+          aria-label="AI assistant"
+          aria-expanded={open}
+          onClick={() => setChosen(!open)}
+          className={
+            open
+              ? "h-12 gap-3 px-8 text-base font-semibold [&_svg]:size-5"
+              : "h-12 gap-3 px-8 text-base font-semibold [&_svg]:size-5 shadow-lg shadow-primary/30 motion-safe:transition-transform motion-safe:hover:-translate-y-0.5"
+          }
+        >
+          <Sparkles aria-hidden className="size-5" />
+          {open ? "Hide AI assistant" : "Ask the AI assistant"}
+          {open ? (
+            <ChevronUp aria-hidden className="size-5" />
+          ) : (
+            <ChevronDown aria-hidden className="size-5" />
+          )}
         </Button>
       </div>
       {open && (
